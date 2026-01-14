@@ -12,6 +12,7 @@ import FailureScreen from './components/FailureScreen';
 const App: React.FC = () => {
   const [status, setStatus] = useState<OSStatus>(OSStatus.BOOTING);
   const [user, setUser] = useState<User | null>(kernel.getCurrentUser());
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
 
   useEffect(() => {
     // Check initial integrity
@@ -19,6 +20,15 @@ const App: React.FC = () => {
     if (!integrity.hasKernel) {
       setStatus(OSStatus.FAILURE);
     }
+
+    // Capture PWA Install Prompt
+    const handleInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
   }, []);
 
   const handleBootComplete = (nextStatus: OSStatus) => {
@@ -46,7 +56,7 @@ const App: React.FC = () => {
           <OOBE onComplete={handleOOBEComplete} />
         );
       case OSStatus.DESKTOP:
-        return user ? <Desktop user={user} /> : <FailureScreen />;
+        return user ? <Desktop user={user} installPrompt={installPrompt} /> : <FailureScreen />;
       default:
         return <FailureScreen />;
     }

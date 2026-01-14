@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { WindowState, AppManifest, User, FileType } from '../types';
 import { fs } from '../services/FileSystem';
@@ -21,12 +22,14 @@ import Clock from '../apps/Clock';
 import Notes from '../apps/Notes';
 import Gallery from '../apps/Gallery';
 import SysInfo from '../apps/SysInfo';
+import Browser from '../apps/Browser';
 import { APP_Z_START } from '../constants';
 
 const BUILT_IN_APPS: AppManifest[] = [
   { id: 'terminal', name: 'Terminal', description: 'System command line', icon: 'fa-terminal', component: Terminal },
   { id: 'explorer', name: 'Files', description: 'File browser', icon: 'fa-folder', component: Explorer },
   { id: 'settings', name: 'Settings', description: 'System customization', icon: 'fa-cog', component: Settings },
+  { id: 'browser', name: 'Chrome', description: 'Web browser', icon: 'fa-globe', component: Browser },
   { id: 'editor', name: 'Text Editor', description: 'Write and save notes', icon: 'fa-file-lines', component: Editor },
   { id: 'taskmgr', name: 'Task Manager', description: 'System performance', icon: 'fa-chart-line', component: TaskManager },
   { id: 'store', name: 'App Store', description: 'Install system applications', icon: 'fa-shopping-bag', component: Store },
@@ -41,7 +44,7 @@ const BUILT_IN_APPS: AppManifest[] = [
   { id: 'sysinfo', name: 'System Info', description: 'Diagnostics & hardware', icon: 'fa-info-circle', component: SysInfo },
 ];
 
-const Desktop: React.FC<{ user: User }> = ({ user }) => {
+const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user, installPrompt }) => {
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number, y: number } | null>(null);
@@ -151,19 +154,9 @@ const Desktop: React.FC<{ user: User }> = ({ user }) => {
     >
       <div className="absolute inset-0 bg-black/30 pointer-events-none"></div>
 
+      {/* Desktop Icons Container */}
       <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
-        <div 
-          className="w-24 h-28 flex flex-col items-center justify-center group cursor-pointer hover:bg-white/10 rounded-2xl transition-all active:scale-95"
-          onDoubleClick={() => launchFolder('/home/user/desktop')}
-        >
-          <div className="w-16 h-16 flex items-center justify-center rounded-[1.25rem] bg-indigo-500/20 backdrop-blur-3xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform">
-            <i className="fas fa-desktop text-indigo-400 text-2xl drop-shadow-lg"></i>
-          </div>
-          <span className="text-white text-[10px] mt-3.5 text-center drop-shadow-md font-black uppercase tracking-widest px-2 truncate w-full">
-            Desktop
-          </span>
-        </div>
-
+        {/* ... existing desktop icons ... */}
         {desktopFiles.map(file => {
           if (file.type !== FileType.APP) return null;
           const app = BUILT_IN_APPS.find(a => a.id === file.content);
@@ -199,7 +192,7 @@ const Desktop: React.FC<{ user: User }> = ({ user }) => {
             onFocus={() => focusWindow(win.id)}
             onUpdate={(newState) => setWindows(prev => prev.map(w => w.id === win.id ? newState : w))}
           >
-            {AppComp && <AppComp launchApp={launchApp} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
+            {AppComp && <AppComp installPrompt={installPrompt} launchApp={launchApp} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
           </Window>
         );
       })}
@@ -223,6 +216,7 @@ const Desktop: React.FC<{ user: User }> = ({ user }) => {
           setIsStartOpen(!isStartOpen);
         }}
         isStartOpen={isStartOpen}
+        installPrompt={installPrompt}
       />
 
       {menu && (
