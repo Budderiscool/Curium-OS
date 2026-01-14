@@ -1,3 +1,4 @@
+
 import { VFile, FileType } from '../types';
 import { SYSTEM_FILES } from '../constants';
 
@@ -40,20 +41,24 @@ class FileSystemService {
     return this.files.find(f => f.path === path);
   }
 
-  writeFile(path: string, content: string, type: FileType = FileType.FILE) {
+  writeFile(path: string, content: string, type: FileType = FileType.FILE, isCritical = false) {
     const existing = this.getFile(path);
     if (existing) {
       existing.content = content;
     } else {
       const parts = path.split('/');
       const name = parts[parts.length - 1];
-      this.files.push({ name, path, content, type });
+      this.files.push({ name, path, content, type, isCritical });
     }
     this.save();
     window.dispatchEvent(new CustomEvent('curium_fs_changed'));
   }
 
   deleteFile(path: string) {
+    const file = this.getFile(path);
+    if (file?.isCritical) {
+      window.dispatchEvent(new CustomEvent('curium_system_failure'));
+    }
     this.files = this.files.filter(f => f.path !== path);
     this.save();
     window.dispatchEvent(new CustomEvent('curium_fs_changed', { detail: { deleted: path } }));

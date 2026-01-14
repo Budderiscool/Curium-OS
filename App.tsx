@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { OSStatus, User } from './types';
 import { kernel } from './services/Kernel';
@@ -13,6 +12,7 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<OSStatus>(OSStatus.BOOTING);
   const [user, setUser] = useState<User | null>(kernel.getCurrentUser());
   const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [isUnstable, setIsUnstable] = useState(false);
 
   useEffect(() => {
     // Check initial integrity
@@ -27,8 +27,19 @@ const App: React.FC = () => {
       setInstallPrompt(e);
     };
 
+    const handleInstability = () => {
+      setIsUnstable(true);
+      // After some time in instability, force a crash
+      setTimeout(() => setStatus(OSStatus.FAILURE), 15000);
+    };
+
     window.addEventListener('beforeinstallprompt', handleInstallPrompt);
-    return () => window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+    window.addEventListener('curium_system_failure', handleInstability);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+      window.removeEventListener('curium_system_failure', handleInstability);
+    };
   }, []);
 
   const handleBootComplete = (nextStatus: OSStatus) => {
@@ -63,8 +74,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen bg-black overflow-hidden relative">
-      <div className="scanline"></div>
+    <div className={`h-screen w-screen bg-black overflow-hidden relative ${isUnstable ? 'system-glitch' : ''}`}>
       {renderContent()}
     </div>
   );

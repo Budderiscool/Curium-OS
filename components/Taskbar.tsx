@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppManifest, WindowState, User } from '../types';
 import { TASKBAR_HEIGHT } from '../constants';
@@ -17,9 +16,28 @@ interface Props {
 
 const Taskbar: React.FC<Props> = ({ user, apps, windows, activeId, onLaunch, onFocus, onStartToggle, isStartOpen, installPrompt }) => {
   const [time, setTime] = useState(new Date());
+  const [battery, setBattery] = useState<{level: number, charging: boolean}>({ level: 1, charging: false });
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
+    
+    // Battery tracking
+    const updateBattery = async () => {
+      try {
+        const nav: any = navigator;
+        if (nav.getBattery) {
+          const b = await nav.getBattery();
+          const update = () => setBattery({ level: b.level, charging: b.charging });
+          b.addEventListener('levelchange', update);
+          b.addEventListener('chargingchange', update);
+          update();
+        }
+      } catch (e) {
+        console.warn('Battery API not supported');
+      }
+    };
+    updateBattery();
+
     return () => clearInterval(timer);
   }, []);
 
@@ -30,17 +48,21 @@ const Taskbar: React.FC<Props> = ({ user, apps, windows, activeId, onLaunch, onF
   const handleInstall = async () => {
     if (!installPrompt) return;
     installPrompt.prompt();
-    const { outcome } = await installPrompt.userChoice;
-    console.log(`Installation ${outcome}`);
+  };
+
+  const getBatteryIcon = () => {
+    if (battery.charging) return 'fa-battery-bolt text-yellow-400';
+    if (battery.level > 0.9) return 'fa-battery-full text-emerald-500';
+    if (battery.level > 0.5) return 'fa-battery-three-quarters text-emerald-400';
+    if (battery.level > 0.2) return 'fa-battery-half text-orange-400';
+    return 'fa-battery-quarter text-red-500';
   };
 
   return (
     <div 
-      className="fixed bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 z-[10002] transition-all duration-500 ease-out"
-      style={{ height: TASKBAR_HEIGHT }}
+      className="fixed bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-2 z-[10002] transition-all duration-500 ease-out h-14"
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Centered Shelf */}
       <div className="flex items-center bg-black/40 backdrop-blur-3xl border border-white/10 rounded-full px-2 py-1.5 shadow-2xl h-full">
         <button 
           onClick={(e) => onStartToggle(e)}
@@ -70,7 +92,6 @@ const Taskbar: React.FC<Props> = ({ user, apps, windows, activeId, onLaunch, onF
                 {isRunning && (
                   <div className={`absolute bottom-1 w-1 h-1 rounded-full transition-all ${isActive ? 'bg-white w-3' : 'bg-white/30'}`}></div>
                 )}
-                {/* Tooltip */}
                 <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-white/10 whitespace-nowrap shadow-2xl">
                   {app.name}
                 </div>
@@ -87,19 +108,18 @@ const Taskbar: React.FC<Props> = ({ user, apps, windows, activeId, onLaunch, onF
               className="w-11 h-11 rounded-full flex items-center justify-center text-blue-400 hover:bg-blue-400/10 transition-all group relative"
             >
               <i className="fas fa-download text-sm"></i>
-              <div className="absolute -top-12 left-1/2 -translate-x-1/2 px-3 py-1.5 bg-gray-900 text-white text-[10px] font-bold rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none border border-white/10 whitespace-nowrap">
-                Install CuriumOS
-              </div>
             </button>
           </>
         )}
       </div>
 
-      {/* System Tray Pill */}
-      <div className="flex items-center bg-black/40 backdrop-blur-3xl border border-white/10 rounded-full px-4 h-full shadow-2xl gap-4 hover:bg-white/5 cursor-pointer transition-colors" onClick={() => onLaunch('settings')}>
-         <div className="flex items-center gap-3 text-white/40 text-[10px]">
+      <div className="flex items-center bg-black/40 backdrop-blur-3xl border border-white/10 rounded-full px-5 h-full shadow-2xl gap-4 hover:bg-white/5 cursor-pointer transition-colors" onClick={() => onLaunch('settings')}>
+         <div className="flex items-center gap-4 text-white/40 text-[10px]">
            <i className="fas fa-wifi"></i>
-           <i className="fas fa-battery-full text-emerald-500"></i>
+           <div className="flex items-center gap-1.5">
+             <i className={`fas ${getBatteryIcon()}`}></i>
+             <span className="font-mono">{Math.round(battery.level * 100)}%</span>
+           </div>
          </div>
          <div className="text-[11px] font-bold text-white/90 font-sans tracking-tight">
            {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}

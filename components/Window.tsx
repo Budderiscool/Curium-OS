@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { WindowState } from '../types';
 
@@ -14,7 +15,9 @@ interface Props {
 
 const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
   const [isDragging, setIsDragging] = useState(false);
+  const [isResizing, setIsResizing] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
+  const resizeStart = useRef({ width: 0, height: 0, x: 0, y: 0 });
 
   const handleMouseDown = (e: React.MouseEvent) => {
     onFocus();
@@ -23,19 +26,58 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
     dragStart.current = { x: e.clientX - state.x, y: e.clientY - state.y };
   };
 
+  const handleResizeStart = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onFocus();
+    setIsResizing(true);
+    resizeStart.current = { 
+      width: state.width, 
+      height: state.height, 
+      x: e.clientX, 
+      y: e.clientY 
+    };
+  };
+
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
       if (isDragging) {
+        let nextX = e.clientX - dragStart.current.x;
+        let nextY = e.clientY - dragStart.current.y;
+
+        // Clamp to screen bounds
+        nextX = Math.max(0, Math.min(nextX, window.innerWidth - state.width));
+        nextY = Math.max(0, Math.min(nextY, window.innerHeight - 60)); // Keep title bar visible above taskbar area
+
         onUpdate({
           ...state,
-          x: e.clientX - dragStart.current.x,
-          y: e.clientY - dragStart.current.y
+          x: nextX,
+          y: nextY
+        });
+      } else if (isResizing) {
+        const deltaX = e.clientX - resizeStart.current.x;
+        const deltaY = e.clientY - resizeStart.current.y;
+        
+        let nextWidth = Math.max(300, resizeStart.current.width + deltaX);
+        let nextHeight = Math.max(200, resizeStart.current.height + deltaY);
+
+        // Prevent resizing off-screen
+        nextWidth = Math.min(nextWidth, window.innerWidth - state.x);
+        nextHeight = Math.min(nextHeight, window.innerHeight - state.y - 40);
+
+        onUpdate({
+          ...state,
+          width: nextWidth,
+          height: nextHeight
         });
       }
     };
-    const handleMouseUp = () => setIsDragging(false);
+    
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setIsResizing(false);
+    };
 
-    if (isDragging) {
+    if (isDragging || isResizing) {
       window.addEventListener('mousemove', handleMouseMove);
       window.addEventListener('mouseup', handleMouseUp);
     }
@@ -43,7 +85,7 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, state, onUpdate]);
+  }, [isDragging, isResizing, state, onUpdate]);
 
   if (state.isMinimized) return null;
 
@@ -92,6 +134,14 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
       {/* Window Content */}
       <div className="flex-1 overflow-auto bg-transparent relative">
         {children}
+      </div>
+
+      {/* Resize Handle */}
+      <div 
+        className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-end justify-end p-1 group z-[10010]"
+        onMouseDown={handleResizeStart}
+      >
+        <div className="w-1.5 h-1.5 bg-white/20 rounded-full group-hover:bg-white/50 transition-colors"></div>
       </div>
     </div>
   );
