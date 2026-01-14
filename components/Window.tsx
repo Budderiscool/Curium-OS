@@ -5,6 +5,7 @@ interface Props {
   state: WindowState;
   isActive: boolean;
   corruptionLevel: number;
+  isFrozen: boolean;
   integrity: { hasIcons: boolean; hasFonts: boolean };
   accentColor: string;
   glassOpacity: number;
@@ -14,26 +15,24 @@ interface Props {
   children: React.ReactNode;
 }
 
-const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, integrity, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
+const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, isFrozen, integrity, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
   const resizeStart = useRef({ width: 0, height: 0, x: 0, y: 0 });
 
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (isFrozen) return;
     onFocus();
     if ((e.target as HTMLElement).closest('.window-controls')) return;
-    
-    if (corruptionLevel > 0.6) {
-      console.warn("Window manager link lost.");
-      return;
-    }
+    if (corruptionLevel > 0.6) return;
 
     setIsDragging(true);
     dragStart.current = { x: e.clientX - state.x, y: e.clientY - state.y };
   };
 
   const handleResizeStart = (e: React.MouseEvent) => {
+    if (isFrozen) return;
     e.stopPropagation();
     onFocus();
     if (corruptionLevel > 0.6) return;
@@ -49,33 +48,19 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, integrity, 
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
+      if (isFrozen) return;
       if (isDragging) {
         let nextX = e.clientX - dragStart.current.x;
         let nextY = e.clientY - dragStart.current.y;
-
         nextX = Math.max(0, Math.min(nextX, window.innerWidth - state.width));
         nextY = Math.max(0, Math.min(nextY, window.innerHeight - 60));
-
-        onUpdate({
-          ...state,
-          x: nextX,
-          y: nextY
-        });
+        onUpdate({ ...state, x: nextX, y: nextY });
       } else if (isResizing) {
         const deltaX = e.clientX - resizeStart.current.x;
         const deltaY = e.clientY - resizeStart.current.y;
-        
         let nextWidth = Math.max(300, resizeStart.current.width + deltaX);
         let nextHeight = Math.max(200, resizeStart.current.height + deltaY);
-
-        nextWidth = Math.min(nextWidth, window.innerWidth - state.x);
-        nextHeight = Math.min(nextHeight, window.innerHeight - state.y - 40);
-
-        onUpdate({
-          ...state,
-          width: nextWidth,
-          height: nextHeight
-        });
+        onUpdate({ ...state, width: nextWidth, height: nextHeight });
       }
     };
     
@@ -92,13 +77,13 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, integrity, 
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [isDragging, isResizing, state, onUpdate]);
+  }, [isDragging, isResizing, state, onUpdate, isFrozen]);
 
   if (state.isMinimized) return null;
 
   return (
     <div 
-      className={`window absolute flex flex-col border rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-out ${isActive ? 'shadow-indigo-500/10' : 'shadow-black/50'}`}
+      className={`window absolute flex flex-col border rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-out ${isActive ? 'shadow-indigo-500/10' : 'shadow-black/50'} ${isFrozen ? 'pointer-events-none' : ''}`}
       style={{
         left: state.x,
         top: state.y,
@@ -126,32 +111,36 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, integrity, 
             {integrity.hasFonts ? state.title : '####'}
           </span>
         </div>
-        <div className="window-controls flex items-center gap-4">
-          <button 
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/5 transition-all"
-            onClick={(e) => { e.stopPropagation(); onUpdate({ ...state, isMinimized: true }); }}
-          >
-            {integrity.hasIcons ? <i className="fas fa-minus text-[10px]"></i> : <div className="w-2 h-0.5 bg-white/40"></div>}
-          </button>
-          <button 
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-all"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-          >
-            {integrity.hasIcons ? <i className="fas fa-times text-[10px]"></i> : <div className="w-2.5 h-2.5 border border-red-400/40"></div>}
-          </button>
-        </div>
+        {!isFrozen && (
+          <div className="window-controls flex items-center gap-4">
+            <button 
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/5 transition-all"
+              onClick={(e) => { e.stopPropagation(); onUpdate({ ...state, isMinimized: true }); }}
+            >
+              {integrity.hasIcons ? <i className="fas fa-minus text-[10px]"></i> : <div className="w-2 h-0.5 bg-white/40"></div>}
+            </button>
+            <button 
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-all"
+              onClick={(e) => { e.stopPropagation(); onClose(); }}
+            >
+              {integrity.hasIcons ? <i className="fas fa-times text-[10px]"></i> : <div className="w-2.5 h-2.5 border border-red-400/40"></div>}
+            </button>
+          </div>
+        )}
       </div>
 
-      <div className="flex-1 overflow-auto bg-transparent relative">
+      <div className={`flex-1 overflow-auto bg-transparent relative ${isFrozen ? 'pointer-events-none overflow-hidden' : ''}`}>
         {children}
       </div>
 
-      <div 
-        className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-end justify-end p-1 group z-[10010]"
-        onMouseDown={handleResizeStart}
-      >
-        <div className="w-1.5 h-1.5 bg-white/20 rounded-full group-hover:bg-white/50 transition-colors"></div>
-      </div>
+      {!isFrozen && (
+        <div 
+          className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-end justify-end p-1 group z-[10010]"
+          onMouseDown={handleResizeStart}
+        >
+          <div className="w-1.5 h-1.5 bg-white/20 rounded-full group-hover:bg-white/50 transition-colors"></div>
+        </div>
+      )}
     </div>
   );
 };

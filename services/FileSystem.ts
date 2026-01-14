@@ -14,14 +14,33 @@ class FileSystemService {
       this.files = JSON.parse(stored);
     } else {
       this.files = [...SYSTEM_FILES];
-      // Add more critical breakage files
-      this.files.push({ name: 'fonts.dll', path: '/sys/ui/fonts.dll', type: FileType.SYSTEM, isCritical: true, content: 'FONT_RASTERIZER_v1' });
       this.generateMassiveSystem();
       this.save();
     }
   }
 
   private generateMassiveSystem() {
+    // Basic system structure
+    const systemStubs = [
+      { path: '/sys/ui/fonts/segoe_ui.ttf', critical: true },
+      { path: '/sys/ui/fonts/roboto.ttf', critical: true },
+      { path: '/sys/ui/icons/main_set.dll', critical: true },
+      { path: '/sys/ui/icons/legacy_pack.dll', critical: true },
+      { path: '/sys/bin/ui_handler.srv', critical: true },
+    ];
+
+    systemStubs.forEach(stub => {
+      if (!this.files.find(f => f.path === stub.path)) {
+        this.files.push({
+          name: stub.path.split('/').pop()!,
+          path: stub.path,
+          type: FileType.SYSTEM,
+          isCritical: stub.critical,
+          content: 'SYSTEM_RESOURCE_BLOB'
+        });
+      }
+    });
+
     const prefixes = ['lib', 'bin', 'src', 'driver', 'mod', 'cache', 'log', 'srv', 'ext', 'cfg'];
     const subdirs = ['network', 'audio', 'video', 'core', 'security', 'virt', 'hid', 'ui', 'kernel', 'usr', 'opt'];
     
@@ -31,7 +50,6 @@ class FileSystemService {
       const name = `${prefix}_${i.toString().padStart(4, '0')}.${i % 5 === 0 ? 'dll' : 'sys'}`;
       const path = `/sys/${subdir}/${name}`;
       
-      // Don't overwrite manually defined system files
       if (this.files.find(f => f.path === path)) continue;
 
       this.files.push({
@@ -55,7 +73,6 @@ class FileSystemService {
   getFilesInDirectory(path: string): VFile[] {
     const normalizedPath = path === '/' ? '/' : (path.endsWith('/') ? path : path + '/');
     
-    // Find files directly in this directory
     const directFiles = this.files.filter(f => {
       if (f.path === path) return false;
       if (!f.path.startsWith(normalizedPath)) return false;
@@ -63,7 +80,6 @@ class FileSystemService {
       return !subPath.includes('/');
     });
 
-    // Find "implicit" directories (e.g., if /sys/core/file exists, 'sys' should be in /)
     const subdirs = new Set<string>();
     this.files.forEach(f => {
       if (f.path.startsWith(normalizedPath) && f.path !== path) {
@@ -75,14 +91,12 @@ class FileSystemService {
       }
     });
 
-    // Convert subdir strings to VFile objects
     const dirFiles: VFile[] = Array.from(subdirs).map(name => ({
       name,
       path: normalizedPath + name,
       type: FileType.DIRECTORY
     }));
 
-    // Merge and remove duplicates (where a folder might be explicitly defined in constants)
     const result = [...dirFiles];
     directFiles.forEach(df => {
       if (!result.find(r => r.path === df.path)) {
@@ -115,12 +129,8 @@ class FileSystemService {
 
   deleteFile(path: string) {
     const file = this.getFile(path);
-    
-    // If it's a directory, delete everything inside it too
-    const isDir = !file || file.type === FileType.DIRECTORY;
     const normalizedPath = path.endsWith('/') ? path : path + '/';
     
-    const countBefore = this.files.length;
     this.files = this.files.filter(f => {
       const shouldDelete = f.path === path || f.path.startsWith(normalizedPath);
       if (shouldDelete && f.isCritical) {
@@ -136,7 +146,6 @@ class FileSystemService {
   reset() {
     localStorage.removeItem('curium_fs');
     this.files = [...SYSTEM_FILES];
-    this.files.push({ name: 'fonts.dll', path: '/sys/ui/fonts.dll', type: FileType.SYSTEM, isCritical: true, content: 'FONT_RASTERIZER_v1' });
     this.generateMassiveSystem();
     this.save();
     window.dispatchEvent(new CustomEvent('curium_fs_changed'));
@@ -150,9 +159,10 @@ class FileSystemService {
     return {
       hasKernel: this.exists('/sys/boot/kernel.sys'),
       hasShell: this.exists('/sys/bin/shell.exe'),
-      hasIcons: this.exists('/sys/ui/icons.dll'),
+      hasIcons: this.exists('/sys/ui/icons/main_set.dll'),
       hasMenu: this.exists('/sys/ui/menu.srv'),
-      hasFonts: this.exists('/sys/ui/fonts.dll')
+      hasFonts: this.exists('/sys/ui/fonts/segoe_ui.ttf'),
+      hasUIHandler: this.exists('/sys/bin/ui_handler.srv')
     };
   }
 }

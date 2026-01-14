@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { OSStatus, User } from './types';
 import { kernel } from './services/Kernel';
@@ -27,7 +26,6 @@ const App: React.FC = () => {
     };
 
     const handleInstability = () => {
-      // Increase corruption incrementally
       setCorruptionLevel(prev => {
         const next = Math.min(prev + 0.15, 1.0);
         if (next >= 1.0) {

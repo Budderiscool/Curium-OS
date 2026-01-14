@@ -51,8 +51,9 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [desktopFiles, setDesktopFiles] = useState(fs.getFilesInDirectory('/home/user/desktop'));
   const [integrity, setIntegrity] = useState(fs.getIntegrityReport());
+  const [isFrozen, setIsFrozen] = useState(false);
+  const [showQuitDialog, setShowQuitDialog] = useState(false);
   
-  // Multi-Selection State
   const [selection, setSelection] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const desktopRef = useRef<HTMLDivElement>(null);
@@ -66,7 +67,6 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
     const currentIntegrity = fs.getIntegrityReport();
     setIntegrity(currentIntegrity);
     
-    // In critical corruption, some files "disappear" from the UI randomly
     let files = fs.getFilesInDirectory('/home/user/desktop');
     if (corruptionLevel > 0.6) {
       files = files.filter(() => Math.random() > (corruptionLevel - 0.5));
@@ -75,26 +75,29 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   }, [corruptionLevel]);
 
   useEffect(() => {
+    const handleUIKill = () => {
+      setIsFrozen(true);
+      setTimeout(() => setShowQuitDialog(true), 3000);
+    };
+
     window.addEventListener('curium_fs_changed', updateSystemState);
     window.addEventListener('curium_user_updated', refreshUser);
+    window.addEventListener('curium_ui_kill', handleUIKill);
+    
     return () => {
       window.removeEventListener('curium_fs_changed', updateSystemState);
       window.removeEventListener('curium_user_updated', refreshUser);
+      window.removeEventListener('curium_ui_kill', handleUIKill);
     };
   }, [updateSystemState, refreshUser]);
 
   const launchApp = (appId: string) => {
-    if (corruptionLevel > 0.4 && Math.random() < (corruptionLevel - 0.3)) {
-      console.warn(`System module ${appId} failed to initialize.`);
-      return;
-    }
+    if (isFrozen) return;
+    if (corruptionLevel > 0.4 && Math.random() < (corruptionLevel - 0.3)) return;
 
     const app = BUILT_IN_APPS.find(a => a.id === appId);
     if (!app) return;
-
-    if (!integrity.hasShell && appId !== 'terminal') {
-      return;
-    }
+    if (!integrity.hasShell && appId !== 'terminal') return;
 
     kernel.trackAppUsage(appId);
     setIsStartOpen(false);
@@ -123,11 +126,13 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   };
 
   const closeWindow = (id: string) => {
+    if (isFrozen) return;
     setWindows(prev => prev.filter(w => w.id !== id));
     if (activeWindowId === id) setActiveWindowId(null);
   };
 
   const focusWindow = (id: string) => {
+    if (isFrozen) return;
     setWindows(prev => {
       const maxZ = Math.max(...prev.map(win => win.zIndex), APP_Z_START);
       return prev.map(w => ({
@@ -140,12 +145,8 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
     setIsStartOpen(false);
   };
 
-  const minimizeAll = () => {
-    setWindows(prev => prev.map(w => ({ ...w, isMinimized: true })));
-    setActiveWindowId(null);
-  };
-
   const handleMouseDown = (e: React.MouseEvent) => {
+    if (isFrozen) return;
     if ((e.target as HTMLElement).closest('.window') || (e.target as HTMLElement).closest('.desktop-icon') || (e.target as HTMLElement).closest('.taskbar')) return;
     setMenu(null);
     setIsStartOpen(false);
@@ -159,12 +160,14 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    if (isFrozen) return;
     if (selection) {
       setSelection(prev => prev ? { ...prev, endX: e.clientX, endY: e.clientY } : null);
     }
   };
 
   const handleMouseUp = () => {
+    if (isFrozen) return;
     if (selection) {
       const rect = {
         left: Math.min(selection.startX, selection.endX),
@@ -187,41 +190,23 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
+    if (isFrozen) {
+       e.preventDefault();
+       return;
+    }
     if ((e.target as HTMLElement).closest('.window-content')) return;
     e.preventDefault();
-    
-    // Deleting /sys/ui/menu.srv breaks context menus
-    if (!integrity.hasMenu) {
-      console.warn("UI Module Error: Menu service unavailable.");
-      return;
-    }
-
-    if (corruptionLevel > 0.7) {
-      setMenu({ x: e.clientX, y: e.clientY });
-      return;
-    }
+    if (!integrity.hasMenu) return;
     setMenu({ x: e.clientX, y: e.clientY });
   };
-
-  const menuItems = corruptionLevel > 0.7 ? [
-    { label: 'CRITICAL_ERROR_0xFB', icon: 'fa-triangle-exclamation', action: () => {} },
-    { label: 'RETRY_LINK_SUBSYSTEM', icon: 'fa-sync', action: () => window.location.reload() }
-  ] : [
-    { label: 'Refresh System', icon: 'fa-sync', action: () => window.location.reload() },
-    { label: 'Launch Terminal', icon: 'fa-terminal', action: () => launchApp('terminal') },
-    { label: 'Personalization', icon: 'fa-palette', action: () => launchApp('settings') },
-    { label: 'Clean Desktop', icon: 'fa-broom', action: () => updateSystemState() },
-  ];
 
   return (
     <div 
       ref={desktopRef}
-      className={`relative h-screen w-screen overflow-hidden bg-cover bg-center select-none transition-all duration-1000 ease-in-out ${!integrity.hasFonts ? 'opacity-0 pointer-events-none' : ''}`}
+      className={`relative h-screen w-screen overflow-hidden bg-cover bg-center select-none transition-all duration-1000 ease-in-out ${!integrity.hasFonts ? 'curium-fonts-missing' : ''} ${isFrozen ? 'cursor-wait pointer-events-none' : ''}`}
       style={{ 
         backgroundImage: `url(${user.settings.wallpaper})`,
         filter: user.accessibility.highContrast ? 'contrast(1.5) grayscale(0.5)' : 'none',
-        // If fonts are missing, hide all text via CSS filter or opacity
-        fontFamily: integrity.hasFonts ? 'inherit' : 'monospace'
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -230,7 +215,6 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
     >
       <div className="absolute inset-0 bg-black/30 pointer-events-none"></div>
 
-      {/* Selection Box UI */}
       {selection && (
         <div 
           className="absolute border border-white/40 bg-white/10 backdrop-blur-[2px] z-[10005] pointer-events-none rounded-sm"
@@ -243,12 +227,11 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         />
       )}
 
-      {/* Desktop Icons Container */}
+      {/* Desktop Icons */}
       <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
         {desktopFiles.map(file => {
           const app = file.type === FileType.APP ? BUILT_IN_APPS.find(a => a.id === file.content) : null;
           const isDir = file.type === FileType.DIRECTORY;
-          
           if (!app && !isDir) return null;
           
           const icon = isDir ? 'fa-folder' : (app?.icon || 'fa-file');
@@ -260,7 +243,7 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
             <div 
               key={file.path} 
               data-path={file.path}
-              className={`desktop-icon w-24 h-28 flex flex-col items-center justify-center group cursor-pointer rounded-2xl transition-all active:scale-95 ${isSelected ? 'bg-white/20' : 'hover:bg-white/10'}`}
+              className={`desktop-icon w-24 h-28 flex flex-col items-center justify-center group rounded-2xl transition-all ${isSelected ? 'bg-white/20' : 'hover:bg-white/10'}`}
               onDoubleClick={() => isDir ? launchApp('explorer') : launchApp(app?.id || '')}
               onClick={(e) => { e.stopPropagation(); setSelectedPaths([file.path]); }}
             >
@@ -279,7 +262,6 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         })}
       </div>
 
-      {/* Render Active Windows */}
       {windows.map(win => {
         const appInfo = BUILT_IN_APPS.find(a => a.id === win.appId);
         const AppComp = appInfo?.component;
@@ -289,12 +271,13 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
             state={win} 
             isActive={activeWindowId === win.id}
             corruptionLevel={corruptionLevel}
+            isFrozen={isFrozen}
             integrity={integrity}
             accentColor={user.settings.accentColor}
             glassOpacity={user.settings.glassOpacity}
             onClose={() => closeWindow(win.id)}
             onFocus={() => focusWindow(win.id)}
-            onUpdate={(newState) => setWindows(prev => prev.map(w => w.id === win.id ? newState : w))}
+            onUpdate={(newState) => !isFrozen && setWindows(prev => prev.map(w => w.id === win.id ? newState : w))}
           >
             <div className={`window-content h-full w-full ${!integrity.hasFonts ? 'text-transparent' : ''}`}>
               {AppComp && <AppComp installPrompt={installPrompt} launchApp={launchApp} integrity={integrity} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
@@ -303,52 +286,53 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         );
       })}
 
-      <StartMenu 
-        user={user} 
-        apps={BUILT_IN_APPS} 
-        onLaunch={launchApp} 
-        isOpen={isStartOpen}
-        integrity={integrity}
-      />
-
-      <Taskbar 
-        user={user}
-        apps={BUILT_IN_APPS} 
-        windows={windows} 
-        activeId={activeWindowId} 
-        onLaunch={launchApp}
-        onFocus={focusWindow}
-        onStartToggle={(e) => {
-          e?.stopPropagation();
-          setIsStartOpen(!isStartOpen);
-        }}
-        onMinimizeAll={minimizeAll}
-        isStartOpen={isStartOpen}
-        installPrompt={installPrompt}
-        integrity={integrity}
-      />
-
-      {menu && integrity.hasMenu && (
-        <ContextMenu 
-          x={menu.x} 
-          y={menu.y} 
-          items={menuItems}
-          integrity={integrity}
-        />
+      {!isFrozen && (
+        <StartMenu user={user} apps={BUILT_IN_APPS} onLaunch={launchApp} isOpen={isStartOpen} integrity={integrity} />
       )}
 
-      {/* Font Failure Overlay */}
-      {!integrity.hasFonts && (
+      <Taskbar 
+        user={user} apps={BUILT_IN_APPS} windows={windows} activeId={activeWindowId} 
+        onLaunch={launchApp} onFocus={focusWindow} onMinimizeAll={() => !isFrozen && setWindows(prev => prev.map(w => ({ ...w, isMinimized: true })))}
+        onStartToggle={(e) => !isFrozen && setIsStartOpen(!isStartOpen)} isStartOpen={isStartOpen} installPrompt={installPrompt} integrity={integrity}
+      />
+
+      {menu && integrity.hasMenu && !isFrozen && (
+        <ContextMenu x={menu.x} y={menu.y} items={corruptionLevel > 0.7 ? [{ label: 'CRITICAL_ERROR', icon: 'fa-triangle-exclamation', action: () => {} }] : [{ label: 'Refresh', icon: 'fa-sync', action: () => window.location.reload() }]} integrity={integrity} />
+      )}
+
+      {/* System Quit Dialog */}
+      {showQuitDialog && (
+        <div className="fixed inset-0 z-[12000] bg-black/80 backdrop-blur-md flex items-center justify-center pointer-events-auto">
+          <div className="w-full max-w-md bg-[#1a1a1a] border border-white/10 rounded-[2.5rem] p-12 text-center shadow-2xl animate-in zoom-in duration-300">
+            <div className="w-20 h-20 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8">
+               <i className="fas fa-triangle-exclamation text-4xl"></i>
+            </div>
+            <h2 className="text-2xl font-black text-white mb-4 uppercase tracking-tighter">Curium OS Unexpectedly Quit</h2>
+            <p className="text-white/40 text-sm mb-12">The system component 'UI Handler' has stopped responding. All unsaved data may be lost.</p>
+            <div className="flex flex-col gap-4">
+               <button 
+                 onClick={() => window.location.reload()}
+                 className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-2xl hover:bg-gray-200 transition-all"
+               >
+                 Reboot System
+               </button>
+               <button 
+                 onClick={() => kernel.reinstall()}
+                 className="w-full py-4 border border-white/10 text-white/40 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
+               >
+                 Factory Reset
+               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!integrity.hasFonts && !isFrozen && (
         <div className="fixed inset-0 z-[11000] bg-black/90 flex flex-col items-center justify-center p-12 text-center font-mono">
            <i className="fas fa-font text-6xl text-red-500 mb-8 animate-pulse"></i>
            <h1 className="text-3xl font-black text-white mb-4">CRITICAL SYSTEM ERROR</h1>
-           <p className="text-white/40 text-sm max-w-lg mb-12">The system font rasterizer module (/sys/ui/fonts.dll) has been removed or corrupted. UI rendering cannot proceed without text primitives.</p>
-           <button 
-             onClick={() => kernel.reinstall()}
-             className="px-8 py-4 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:bg-gray-200"
-           >
-             Emergency Recovery
-           </button>
+           <p className="text-white/40 text-sm max-w-lg mb-12">The system font rasterizer module has been removed. UI rendering cannot proceed.</p>
+           <button onClick={() => kernel.reinstall()} className="px-8 py-4 bg-white text-black font-black uppercase rounded-xl">Emergency Recovery</button>
         </div>
       )}
     </div>
