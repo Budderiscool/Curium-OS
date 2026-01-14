@@ -1,6 +1,6 @@
 # CuriumOS
 
-CuriumOS is a high-performance, web-based operating system built with React, TypeScript, and the Gemini API. It features a virtual file system (VFS), a modular application architecture, and deep integration with Google Generative AI for intelligent system features.
+CuriumOS is a high-performance, web-based operating system featuring a virtual file system (VFS), system corruption simulation, and a modular application architecture integrated with Gemini AI.
 
 ## 🚀 Deployment Configuration
 
@@ -8,7 +8,6 @@ To deploy CuriumOS to Cloudflare Pages, the following `wrangler.jsonc` configura
 
 ```json
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
   "name": "curiumos",
   "pages_build_output_dir": "dist",
   "compatibility_date": "2025-05-15",
@@ -27,36 +26,32 @@ To deploy CuriumOS to Cloudflare Pages, the following `wrangler.jsonc` configura
 }
 ```
 
+### ⚠️ Important: Deployment Command
+If you receive an error stating *"It looks like you've run a Workers-specific command in a Pages project"*, ensure you are using the Pages deployment command:
+
+```bash
+wrangler pages deploy dist
+```
+
 ## 🛠 System Architecture
 
 ### 1. The Kernel (`services/Kernel.ts`)
-The Kernel manages the global state of the OS, including user authentication, session persistence, and application usage tracking. It interfaces with `CloudStorage` to ensure user profiles are synchronized across devices using Cloudflare Workers KV.
+The central management layer for user sessions and system state. It uses Cloudflare Pages Functions (`/functions/api/profile.ts`) to persist user profiles to KV storage.
 
 ### 2. Virtual File System (`services/FileSystem.ts`)
-CuriumOS operates on a virtualized directory structure stored in the browser's `LocalStorage`. It supports:
-- **System Binaries**: Critical files in `/sys` required for booting.
-- **Desktop**: A special folder in `/home/user/desktop` that dynamically renders icons on the main workspace.
-- **Applications**: `.app` pointer files that trigger the UI Shell to mount specific React components.
+A robust `/sys` and `/home` directory structure simulated in browser storage. Includes integrity checking that triggers OS-wide "glitch" states if critical files are removed.
 
-### 3. Intelligence Layer
-The OS leverages the Gemini API (`gemini-3-flash-preview` and `gemini-2.5-flash-lite-latest`) for:
-- **AI Assistant**: A native chat interface.
-- **Maps Grounding**: Real-time location search and descriptions in the Maps app.
-- **Weather Service**: Search-grounded atmospheric reports.
+### 3. AI Services
+Native apps like **AI Assistant**, **Maps**, and **Weather** leverage Google's Gemini API for real-time intelligence and grounding.
 
-## 📂 Desktop Management
+## 📂 Desktop & Apps
+- **VFS Path**: `/home/user/desktop`
+- **Installation**: Apps can be "provisioned" via the **App Store**, which writes an executable pointer to the VFS.
+- **Removal**: Deleting an app file from the Desktop folder uninstalls the capability.
 
-CuriumOS features a "Physicalized" Desktop folder.
-- **Installing**: Use the **App Store** to provision new capabilities. This writes a `.app` file to the Desktop.
-- **Uninstalling**: Deleting an app icon from the Desktop folder (via Files or Terminal) removes the capability and makes it available for re-provisioning in the Store.
-
-## ⌨️ Terminal Commands
-
-The system shell supports standard UNIX-like interactions:
-- `ls`: List files in the current directory.
-- `rm [path]`: Delete a file (e.g., `rm /home/user/desktop/maps.app`).
-- `open [app_id]`: Force-launch a system module.
-- `reset-system`: Restores corrupted system binaries from the recovery partition.
+## ⌨️ Terminal
+A fully functional shell supporting:
+- `ls`, `cd`, `pwd`, `mkdir`, `touch`, `rm`, `cat`, `open`, `neofetch`, `reboot`, `reset-system`.
 
 ---
 *© 2025 Curium Systems. All rights reserved.*
