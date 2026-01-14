@@ -5,7 +5,7 @@ CuriumOS is a high-performance, web-based operating system featuring a virtual f
 ## 🚀 Deployment Configuration
 
 To deploy CuriumOS to Cloudflare Pages, the following `wrangler.jsonc` configuration is required in the root directory:
-n
+
 ```json
 {
   "name": "curiumos",
