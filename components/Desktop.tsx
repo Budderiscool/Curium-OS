@@ -43,6 +43,9 @@ const BUILT_IN_APPS: AppManifest[] = [
   { id: 'sysinfo', name: 'System Info', description: 'Diagnostics & hardware', icon: 'fa-info-circle', component: SysInfo },
 ];
 
+// IDs of apps considered "System" or "Pre-installed" for icon deletion purposes
+const SYSTEM_APP_IDS = ['terminal', 'explorer', 'settings', 'taskmgr', 'sysinfo', 'store'];
+
 const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: number }> = ({ user: initialUser, installPrompt, corruptionLevel }) => {
   const [user, setUser] = useState<User>(initialUser);
   const [windows, setWindows] = useState<WindowState[]>([]);
@@ -93,11 +96,19 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
 
   const launchApp = (appId: string) => {
     if (isFrozen) return;
-    if (corruptionLevel > 0.4 && Math.random() < (corruptionLevel - 0.3)) return;
+    
+    if (!integrity.hasShell && appId !== 'terminal') {
+      alert("System Shell Unavailable: /sys/bin/shell.exe missing.");
+      return;
+    }
+
+    if (corruptionLevel > 0.4 && Math.random() < (corruptionLevel - 0.3)) {
+      console.warn(`Module failure: ${appId} process ID rejected by kernel.`);
+      return;
+    }
 
     const app = BUILT_IN_APPS.find(a => a.id === appId);
     if (!app) return;
-    if (!integrity.hasShell && appId !== 'terminal') return;
 
     kernel.trackAppUsage(appId);
     setIsStartOpen(false);
@@ -203,7 +214,7 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   return (
     <div 
       ref={desktopRef}
-      className={`relative h-screen w-screen overflow-hidden bg-cover bg-center select-none transition-all duration-1000 ease-in-out ${!integrity.hasFonts ? 'curium-fonts-missing' : ''} ${isFrozen ? 'cursor-wait pointer-events-none' : ''}`}
+      className={`relative h-screen w-screen overflow-hidden bg-cover bg-center select-none transition-all duration-1000 ease-in-out ${!integrity.hasFonts ? 'system-fonts-missing' : ''} ${isFrozen ? 'cursor-wait pointer-events-none' : ''}`}
       style={{ 
         backgroundImage: `url(${user.settings.wallpaper})`,
         filter: user.accessibility.highContrast ? 'contrast(1.5) grayscale(0.5)' : 'none',
@@ -227,7 +238,7 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         />
       )}
 
-      {/* Desktop Icons */}
+      {/* Desktop Icons Container */}
       <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
         {desktopFiles.map(file => {
           const app = file.type === FileType.APP ? BUILT_IN_APPS.find(a => a.id === file.content) : null;
@@ -239,6 +250,10 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
           const color = isDir ? '#818cf8' : user.settings.accentColor;
           const isSelected = selectedPaths.includes(file.path);
 
+          // Hide icon only if it's a "System App" and integrity is failing
+          const isSystemApp = app && SYSTEM_APP_IDS.includes(app.id);
+          const shouldShowIcon = !isSystemApp || (isSystemApp && integrity.hasIcons);
+
           return (
             <div 
               key={file.path} 
@@ -248,14 +263,14 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
               onClick={(e) => { e.stopPropagation(); setSelectedPaths([file.path]); }}
             >
               <div className="w-16 h-16 flex items-center justify-center rounded-[1.25rem] bg-black/20 backdrop-blur-xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform overflow-hidden">
-                {integrity.hasIcons ? (
+                {shouldShowIcon ? (
                    <i className={`fas ${icon} text-white text-2xl drop-shadow-lg`} style={{ color }}></i>
                 ) : (
-                   <div className="w-8 h-8 bg-white/10 border border-dashed border-white/20 rounded-md"></div>
+                   <div className="w-8 h-8 bg-white/5 border border-dashed border-white/10 rounded-md"></div>
                 )}
               </div>
-              <span className={`text-white text-[10px] mt-3.5 text-center drop-shadow-md font-black uppercase tracking-widest px-2 truncate w-full ${!integrity.hasFonts ? 'text-transparent bg-white/10 rounded' : ''}`}>
-                {integrity.hasFonts ? name : '####'}
+              <span className="text-white text-[10px] mt-3.5 text-center drop-shadow-md font-black uppercase tracking-widest px-2 truncate w-full">
+                {name}
               </span>
             </div>
           );
@@ -265,6 +280,8 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
       {windows.map(win => {
         const appInfo = BUILT_IN_APPS.find(a => a.id === win.appId);
         const AppComp = appInfo?.component;
+        const isSystemWin = SYSTEM_APP_IDS.includes(win.appId);
+
         return (
           <Window 
             key={win.id} 
@@ -273,13 +290,14 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
             corruptionLevel={corruptionLevel}
             isFrozen={isFrozen}
             integrity={integrity}
+            isSystemApp={isSystemWin}
             accentColor={user.settings.accentColor}
             glassOpacity={user.settings.glassOpacity}
             onClose={() => closeWindow(win.id)}
             onFocus={() => focusWindow(win.id)}
             onUpdate={(newState) => !isFrozen && setWindows(prev => prev.map(w => w.id === win.id ? newState : w))}
           >
-            <div className={`window-content h-full w-full ${!integrity.hasFonts ? 'text-transparent' : ''}`}>
+            <div className="window-content h-full w-full">
               {AppComp && <AppComp installPrompt={installPrompt} launchApp={launchApp} integrity={integrity} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
             </div>
           </Window>
@@ -287,20 +305,20 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
       })}
 
       {!isFrozen && (
-        <StartMenu user={user} apps={BUILT_IN_APPS} onLaunch={launchApp} isOpen={isStartOpen} integrity={integrity} />
+        <StartMenu user={user} apps={BUILT_IN_APPS} systemAppIds={SYSTEM_APP_IDS} onLaunch={launchApp} isOpen={isStartOpen} integrity={integrity} />
       )}
 
       <Taskbar 
         user={user} apps={BUILT_IN_APPS} windows={windows} activeId={activeWindowId} 
+        systemAppIds={SYSTEM_APP_IDS} integrity={integrity}
         onLaunch={launchApp} onFocus={focusWindow} onMinimizeAll={() => !isFrozen && setWindows(prev => prev.map(w => ({ ...w, isMinimized: true })))}
-        onStartToggle={(e) => !isFrozen && setIsStartOpen(!isStartOpen)} isStartOpen={isStartOpen} installPrompt={installPrompt} integrity={integrity}
+        onStartToggle={(e) => !isFrozen && setIsStartOpen(!isStartOpen)} isStartOpen={isStartOpen} installPrompt={installPrompt}
       />
 
       {menu && integrity.hasMenu && !isFrozen && (
-        <ContextMenu x={menu.x} y={menu.y} items={corruptionLevel > 0.7 ? [{ label: 'CRITICAL_ERROR', icon: 'fa-triangle-exclamation', action: () => {} }] : [{ label: 'Refresh', icon: 'fa-sync', action: () => window.location.reload() }]} integrity={integrity} />
+        <ContextMenu x={menu.x} y={menu.y} items={corruptionLevel > 0.7 ? [{ label: 'CRITICAL_ERROR', icon: 'fa-triangle-exclamation', action: () => {} }] : [{ label: 'Refresh', icon: 'fa-sync', action: () => window.location.reload() }]} />
       )}
 
-      {/* System Quit Dialog */}
       {showQuitDialog && (
         <div className="fixed inset-0 z-[12000] bg-black/80 backdrop-blur-md flex items-center justify-center pointer-events-auto">
           <div className="w-full max-w-md bg-[#1a1a1a] border border-white/10 rounded-[2.5rem] p-12 text-center shadow-2xl animate-in zoom-in duration-300">
@@ -310,29 +328,10 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
             <h2 className="text-2xl font-black text-white mb-4 uppercase tracking-tighter">Curium OS Unexpectedly Quit</h2>
             <p className="text-white/40 text-sm mb-12">The system component 'UI Handler' has stopped responding. All unsaved data may be lost.</p>
             <div className="flex flex-col gap-4">
-               <button 
-                 onClick={() => window.location.reload()}
-                 className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-2xl hover:bg-gray-200 transition-all"
-               >
-                 Reboot System
-               </button>
-               <button 
-                 onClick={() => kernel.reinstall()}
-                 className="w-full py-4 border border-white/10 text-white/40 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all"
-               >
-                 Factory Reset
-               </button>
+               <button onClick={() => window.location.reload()} className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-2xl hover:bg-gray-200 transition-all">Reboot System</button>
+               <button onClick={() => kernel.reinstall()} className="w-full py-4 border border-white/10 text-white/40 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">Factory Reset</button>
             </div>
           </div>
-        </div>
-      )}
-
-      {!integrity.hasFonts && !isFrozen && (
-        <div className="fixed inset-0 z-[11000] bg-black/90 flex flex-col items-center justify-center p-12 text-center font-mono">
-           <i className="fas fa-font text-6xl text-red-500 mb-8 animate-pulse"></i>
-           <h1 className="text-3xl font-black text-white mb-4">CRITICAL SYSTEM ERROR</h1>
-           <p className="text-white/40 text-sm max-w-lg mb-12">The system font rasterizer module has been removed. UI rendering cannot proceed.</p>
-           <button onClick={() => kernel.reinstall()} className="px-8 py-4 bg-white text-black font-black uppercase rounded-xl">Emergency Recovery</button>
         </div>
       )}
     </div>

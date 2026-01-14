@@ -20,6 +20,17 @@
       user-select: none;
     }
 
+    /* System Breakage Styles */
+    .system-fonts-missing *:not(i):not(input):not(textarea) {
+      color: transparent !important;
+      text-shadow: none !important;
+    }
+    
+    .system-fonts-missing input, 
+    .system-fonts-missing textarea {
+      color: transparent !important;
+    }
+
     .crt::after {
       content: " ";
       display: block;
@@ -44,7 +55,6 @@
       animation: glitch 0.2s infinite;
     }
 
-    /* Chrome App Scrollbar Styling */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 10px; }
@@ -64,12 +74,5 @@
 <body class="bg-black text-white h-screen overflow-hidden">
   <div id="root"></div>
   <script type="module" src="/index.tsx"></script>
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW registration failed:', err));
-      });
-    }
-  </script>
 </body>
 </html>

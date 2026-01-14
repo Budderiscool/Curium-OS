@@ -7,6 +7,7 @@ interface Props {
   corruptionLevel: number;
   isFrozen: boolean;
   integrity: { hasIcons: boolean; hasFonts: boolean };
+  isSystemApp: boolean;
   accentColor: string;
   glassOpacity: number;
   onClose: () => void;
@@ -15,7 +16,7 @@ interface Props {
   children: React.ReactNode;
 }
 
-const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, isFrozen, integrity, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
+const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, isFrozen, integrity, isSystemApp, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
@@ -81,6 +82,8 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, isFrozen, i
 
   if (state.isMinimized) return null;
 
+  const shouldShowIcon = !isSystemApp || (isSystemApp && integrity.hasIcons);
+
   return (
     <div 
       className={`window absolute flex flex-col border rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-out ${isActive ? 'shadow-indigo-500/10' : 'shadow-black/50'} ${isFrozen ? 'pointer-events-none' : ''}`}
@@ -102,13 +105,13 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, isFrozen, i
         onMouseDown={handleMouseDown}
       >
         <div className="flex items-center gap-3">
-          {integrity.hasIcons ? (
+          {shouldShowIcon ? (
             <i className={`fas ${state.icon} text-sm`} style={{ color: isActive ? accentColor : 'rgba(255,255,255,0.3)' }}></i>
           ) : (
             <div className="w-3 h-3 bg-white/10 rounded-sm"></div>
           )}
-          <span className={`text-[11px] font-black uppercase tracking-widest truncate max-w-[200px] ${isActive ? 'text-white' : 'text-white/40'} ${!integrity.hasFonts ? 'text-transparent bg-white/10' : ''}`}>
-            {integrity.hasFonts ? state.title : '####'}
+          <span className={`text-[11px] font-black uppercase tracking-widest truncate max-w-[200px] ${isActive ? 'text-white' : 'text-white/40'}`}>
+            {state.title}
           </span>
         </div>
         {!isFrozen && (
@@ -117,13 +120,13 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, isFrozen, i
               className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/5 transition-all"
               onClick={(e) => { e.stopPropagation(); onUpdate({ ...state, isMinimized: true }); }}
             >
-              {integrity.hasIcons ? <i className="fas fa-minus text-[10px]"></i> : <div className="w-2 h-0.5 bg-white/40"></div>}
+              <i className="fas fa-minus text-[10px]"></i>
             </button>
             <button 
               className="w-8 h-8 rounded-lg flex items-center justify-center text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-all"
               onClick={(e) => { e.stopPropagation(); onClose(); }}
             >
-              {integrity.hasIcons ? <i className="fas fa-times text-[10px]"></i> : <div className="w-2.5 h-2.5 border border-red-400/40"></div>}
+              <i className="fas fa-times text-[10px]"></i>
             </button>
           </div>
         )}

@@ -1,25 +1,35 @@
+
 import { FileType, VFile } from './types';
 
 export const SYSTEM_FILES: VFile[] = [
   { name: 'kernel.sys', path: '/sys/boot/kernel.sys', type: FileType.SYSTEM, isCritical: true, content: 'SYSTEM_CORE_0xFF1A' },
   { name: 'shell.exe', path: '/sys/bin/shell.exe', type: FileType.SYSTEM, isCritical: true, content: 'UI_SHELL_MODULE' },
-  { name: 'icons.dll', path: '/sys/ui/icons.dll', type: FileType.SYSTEM, isCritical: true, content: 'GLYPH_RESOURCE_PACK' },
+  { name: 'ui_handler.srv', path: '/sys/bin/ui_handler.srv', type: FileType.SYSTEM, isCritical: true, content: 'UI_COMPOSITOR_SERVICE' },
   { name: 'menu.srv', path: '/sys/ui/menu.srv', type: FileType.SYSTEM, isCritical: true, content: 'CONTEXT_MENU_HANDLER' },
   { name: 'fstab', path: '/etc/fstab', type: FileType.SYSTEM, isCritical: true, content: 'UUID=root / ext4 defaults 1 1' },
-  { name: 'hosts', path: '/etc/hosts', type: FileType.SYSTEM, isCritical: false, content: '127.0.0.1 localhost' },
-  { name: 'syslog', path: '/var/log/syslog', type: FileType.SYSTEM, isCritical: false, content: '[INFO] System boot successful.' },
-  { name: 'display.drv', path: '/sys/drivers/display.drv', type: FileType.SYSTEM, isCritical: true, content: 'DRV_DISPLAY_V1' },
-  { name: 'input.drv', path: '/sys/drivers/input.drv', type: FileType.SYSTEM, isCritical: true, content: 'DRV_INPUT_HID' },
   
-  // Desktop Directory
+  // Folders
   { name: 'desktop', path: '/home/user/desktop', type: FileType.DIRECTORY },
-  
-  // Desktop Apps (Pointer Files)
+  { name: 'fonts', path: '/sys/fonts', type: FileType.DIRECTORY },
+  { name: 'icons', path: '/sys/icons', type: FileType.DIRECTORY },
+
+  // Pre-installed Apps on Desktop
   { name: 'Terminal.app', path: '/home/user/desktop/terminal.app', type: FileType.APP, content: 'terminal', icon: 'fa-terminal' },
   { name: 'Files.app', path: '/home/user/desktop/explorer.app', type: FileType.APP, content: 'explorer', icon: 'fa-folder' },
   { name: 'Settings.app', path: '/home/user/desktop/settings.app', type: FileType.APP, content: 'settings', icon: 'fa-cog' },
+  { name: 'Browser.app', path: '/home/user/desktop/browser.app', type: FileType.APP, content: 'browser', icon: 'fa-globe' },
   { name: 'Store.app', path: '/home/user/desktop/store.app', type: FileType.APP, content: 'store', icon: 'fa-shopping-bag' },
   { name: 'Editor.app', path: '/home/user/desktop/editor.app', type: FileType.APP, content: 'editor', icon: 'fa-file-lines' },
+  { name: 'AI.app', path: '/home/user/desktop/ai.app', type: FileType.APP, content: 'ai', icon: 'fa-robot' },
+  { name: 'TaskManager.app', path: '/home/user/desktop/taskmgr.app', type: FileType.APP, content: 'taskmgr', icon: 'fa-chart-line' },
+  { name: 'Maps.app', path: '/home/user/desktop/maps.app', type: FileType.APP, content: 'maps', icon: 'fa-map-marked-alt' },
+  { name: 'Calculator.app', path: '/home/user/desktop/calc.app', type: FileType.APP, content: 'calc', icon: 'fa-calculator' },
+  { name: 'Media.app', path: '/home/user/desktop/media.app', type: FileType.APP, content: 'media', icon: 'fa-compact-disc' },
+  { name: 'Weather.app', path: '/home/user/desktop/weather.app', type: FileType.APP, content: 'weather', icon: 'fa-cloud-sun' },
+  { name: 'Clock.app', path: '/home/user/desktop/clock.app', type: FileType.APP, content: 'clock', icon: 'fa-clock' },
+  { name: 'Notes.app', path: '/home/user/desktop/notes.app', type: FileType.APP, content: 'notes', icon: 'fa-sticky-note' },
+  { name: 'Gallery.app', path: '/home/user/desktop/gallery.app', type: FileType.APP, content: 'gallery', icon: 'fa-images' },
+  { name: 'SysInfo.app', path: '/home/user/desktop/sysinfo.app', type: FileType.APP, content: 'sysinfo', icon: 'fa-info-circle' },
 ];
 
 export const APP_Z_START = 100;

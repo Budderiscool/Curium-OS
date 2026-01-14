@@ -1,3 +1,4 @@
+
 import { VFile, FileType } from '../types';
 import { SYSTEM_FILES } from '../constants';
 
@@ -22,11 +23,10 @@ class FileSystemService {
   private generateMassiveSystem() {
     // Basic system structure
     const systemStubs = [
-      { path: '/sys/ui/fonts/segoe_ui.ttf', critical: true },
-      { path: '/sys/ui/fonts/roboto.ttf', critical: true },
-      { path: '/sys/ui/icons/main_set.dll', critical: true },
-      { path: '/sys/ui/icons/legacy_pack.dll', critical: true },
-      { path: '/sys/bin/ui_handler.srv', critical: true },
+      { path: '/sys/fonts/segoe_ui.ttf', critical: true },
+      { path: '/sys/fonts/roboto.ttf', critical: true },
+      { path: '/sys/icons/main_set.dll', critical: true },
+      { path: '/sys/icons/legacy_pack.dll', critical: true },
     ];
 
     systemStubs.forEach(stub => {
@@ -159,9 +159,9 @@ class FileSystemService {
     return {
       hasKernel: this.exists('/sys/boot/kernel.sys'),
       hasShell: this.exists('/sys/bin/shell.exe'),
-      hasIcons: this.exists('/sys/ui/icons/main_set.dll'),
+      hasIcons: this.exists('/sys/icons/main_set.dll'),
       hasMenu: this.exists('/sys/ui/menu.srv'),
-      hasFonts: this.exists('/sys/ui/fonts/segoe_ui.ttf'),
+      hasFonts: this.exists('/sys/fonts/segoe_ui.ttf'),
       hasUIHandler: this.exists('/sys/bin/ui_handler.srv')
     };
   }
