@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { WindowState, AppManifest, User, FileType } from '../types';
+import { WindowState, AppManifest, User, FileType, OSStatus } from '../types';
 import { fs } from '../services/FileSystem';
 import { kernel } from '../services/Kernel';
 import Window from './Window';
@@ -22,6 +23,7 @@ import Notes from '../apps/Notes';
 import Gallery from '../apps/Gallery';
 import SysInfo from '../apps/SysInfo';
 import Browser from '../apps/Browser';
+import FailureScreen from './FailureScreen';
 import { APP_Z_START } from '../constants';
 
 const BUILT_IN_APPS: AppManifest[] = [
@@ -43,7 +45,6 @@ const BUILT_IN_APPS: AppManifest[] = [
   { id: 'sysinfo', name: 'System Info', description: 'Diagnostics & hardware', icon: 'fa-info-circle', component: SysInfo },
 ];
 
-// IDs of apps considered "System" or "Pre-installed" for icon deletion purposes
 const SYSTEM_APP_IDS = ['terminal', 'explorer', 'settings', 'taskmgr', 'sysinfo', 'store'];
 
 const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: number }> = ({ user: initialUser, installPrompt, corruptionLevel }) => {
@@ -55,7 +56,7 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   const [desktopFiles, setDesktopFiles] = useState(fs.getFilesInDirectory('/home/user/desktop'));
   const [integrity, setIntegrity] = useState(fs.getIntegrityReport());
   const [isFrozen, setIsFrozen] = useState(false);
-  const [showQuitDialog, setShowQuitDialog] = useState(false);
+  const [isCrashed, setIsCrashed] = useState(false);
   
   const [selection, setSelection] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
@@ -80,7 +81,8 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   useEffect(() => {
     const handleUIKill = () => {
       setIsFrozen(true);
-      setTimeout(() => setShowQuitDialog(true), 3000);
+      // After 3 seconds of "frozen" screen, trigger the BSOD
+      setTimeout(() => setIsCrashed(true), 3000);
     };
 
     window.addEventListener('curium_fs_changed', updateSystemState);
@@ -96,16 +98,11 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
 
   const launchApp = (appId: string) => {
     if (isFrozen) return;
-    
     if (!integrity.hasShell && appId !== 'terminal') {
       alert("System Shell Unavailable: /sys/bin/shell.exe missing.");
       return;
     }
-
-    if (corruptionLevel > 0.4 && Math.random() < (corruptionLevel - 0.3)) {
-      console.warn(`Module failure: ${appId} process ID rejected by kernel.`);
-      return;
-    }
+    if (corruptionLevel > 0.4 && Math.random() < (corruptionLevel - 0.3)) return;
 
     const app = BUILT_IN_APPS.find(a => a.id === appId);
     if (!app) return;
@@ -211,6 +208,10 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
     setMenu({ x: e.clientX, y: e.clientY });
   };
 
+  if (isCrashed) {
+    return <FailureScreen error="UI_HANDLER_TERMINATED" />;
+  }
+
   return (
     <div 
       ref={desktopRef}
@@ -238,7 +239,7 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         />
       )}
 
-      {/* Desktop Icons Container */}
+      {/* Desktop Icons */}
       <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
         {desktopFiles.map(file => {
           const app = file.type === FileType.APP ? BUILT_IN_APPS.find(a => a.id === file.content) : null;
@@ -250,7 +251,6 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
           const color = isDir ? '#818cf8' : user.settings.accentColor;
           const isSelected = selectedPaths.includes(file.path);
 
-          // Hide icon only if it's a "System App" and integrity is failing
           const isSystemApp = app && SYSTEM_APP_IDS.includes(app.id);
           const shouldShowIcon = !isSystemApp || (isSystemApp && integrity.hasIcons);
 
@@ -317,22 +317,6 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
 
       {menu && integrity.hasMenu && !isFrozen && (
         <ContextMenu x={menu.x} y={menu.y} items={corruptionLevel > 0.7 ? [{ label: 'CRITICAL_ERROR', icon: 'fa-triangle-exclamation', action: () => {} }] : [{ label: 'Refresh', icon: 'fa-sync', action: () => window.location.reload() }]} />
-      )}
-
-      {showQuitDialog && (
-        <div className="fixed inset-0 z-[12000] bg-black/80 backdrop-blur-md flex items-center justify-center pointer-events-auto">
-          <div className="w-full max-w-md bg-[#1a1a1a] border border-white/10 rounded-[2.5rem] p-12 text-center shadow-2xl animate-in zoom-in duration-300">
-            <div className="w-20 h-20 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8">
-               <i className="fas fa-triangle-exclamation text-4xl"></i>
-            </div>
-            <h2 className="text-2xl font-black text-white mb-4 uppercase tracking-tighter">Curium OS Unexpectedly Quit</h2>
-            <p className="text-white/40 text-sm mb-12">The system component 'UI Handler' has stopped responding. All unsaved data may be lost.</p>
-            <div className="flex flex-col gap-4">
-               <button onClick={() => window.location.reload()} className="w-full py-4 bg-white text-black font-black uppercase tracking-widest rounded-2xl hover:bg-gray-200 transition-all">Reboot System</button>
-               <button onClick={() => kernel.reinstall()} className="w-full py-4 border border-white/10 text-white/40 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all">Factory Reset</button>
-            </div>
-          </div>
-        </div>
       )}
     </div>
   );
