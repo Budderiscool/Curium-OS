@@ -6,12 +6,18 @@ export const SYSTEM_FILES: VFile[] = [
   { name: 'shell.exe', path: '/sys/bin/shell.exe', type: FileType.SYSTEM, isCritical: true, content: 'UI_SHELL_MODULE' },
   { name: 'ui_handler.srv', path: '/sys/bin/ui_handler.srv', type: FileType.SYSTEM, isCritical: true, content: 'UI_COMPOSITOR_SERVICE' },
   { name: 'menu.srv', path: '/sys/ui/menu.srv', type: FileType.SYSTEM, isCritical: true, content: 'CONTEXT_MENU_HANDLER' },
+  { name: 'compositor.sys', path: '/sys/ui/compositor.sys', type: FileType.SYSTEM, isCritical: true, content: 'GFX_COMP_V1' },
   { name: 'fstab', path: '/etc/fstab', type: FileType.SYSTEM, isCritical: true, content: 'UUID=root / ext4 defaults 1 1' },
   
   // Folders
   { name: 'desktop', path: '/home/user/desktop', type: FileType.DIRECTORY },
   { name: 'fonts', path: '/sys/fonts', type: FileType.DIRECTORY },
   { name: 'icons', path: '/sys/icons', type: FileType.DIRECTORY },
+  { name: 'images', path: '/sys/images', type: FileType.DIRECTORY },
+  { name: 'ui', path: '/sys/ui', type: FileType.DIRECTORY },
+
+  // Critical Resources
+  { name: 'wallpaper_system.img', path: '/sys/images/wallpaper_system.img', type: FileType.SYSTEM, isCritical: true, content: 'BLOB_DATA_IMG_001' },
 
   // Pre-installed Apps on Desktop
   { name: 'Terminal.app', path: '/home/user/desktop/terminal.app', type: FileType.APP, content: 'terminal', icon: 'fa-terminal' },

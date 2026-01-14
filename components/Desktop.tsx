@@ -81,7 +81,6 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   useEffect(() => {
     const handleUIKill = () => {
       setIsFrozen(true);
-      // After 3 seconds of "frozen" screen, trigger the BSOD
       setTimeout(() => setIsCrashed(true), 3000);
     };
 
@@ -155,6 +154,7 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (isFrozen) return;
+    if (!integrity.hasUI) return; // Prevent selection if UI is deleted
     if ((e.target as HTMLElement).closest('.window') || (e.target as HTMLElement).closest('.desktop-icon') || (e.target as HTMLElement).closest('.taskbar')) return;
     setMenu(null);
     setIsStartOpen(false);
@@ -198,7 +198,7 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   };
 
   const handleContextMenu = (e: React.MouseEvent) => {
-    if (isFrozen) {
+    if (isFrozen || !integrity.hasUI) {
        e.preventDefault();
        return;
     }
@@ -212,22 +212,26 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
     return <FailureScreen error="UI_HANDLER_TERMINATED" />;
   }
 
+  // Determine Background Style
+  const desktopStyle: React.CSSProperties = {
+    backgroundImage: integrity.hasImages ? `url(${user.settings.wallpaper})` : 'none',
+    backgroundColor: integrity.hasImages ? 'transparent' : '#ffffff',
+    filter: user.accessibility.highContrast ? 'contrast(1.5) grayscale(0.5)' : 'none',
+  };
+
   return (
     <div 
       ref={desktopRef}
       className={`relative h-screen w-screen overflow-hidden bg-cover bg-center select-none transition-all duration-1000 ease-in-out ${!integrity.hasFonts ? 'system-fonts-missing' : ''} ${isFrozen ? 'cursor-wait pointer-events-none' : ''}`}
-      style={{ 
-        backgroundImage: `url(${user.settings.wallpaper})`,
-        filter: user.accessibility.highContrast ? 'contrast(1.5) grayscale(0.5)' : 'none',
-      }}
+      style={desktopStyle}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onContextMenu={handleContextMenu}
     >
-      <div className="absolute inset-0 bg-black/30 pointer-events-none"></div>
+      <div className={`absolute inset-0 bg-black/30 pointer-events-none ${!integrity.hasImages ? 'bg-transparent' : ''}`}></div>
 
-      {selection && (
+      {selection && integrity.hasUI && (
         <div 
           className="absolute border border-white/40 bg-white/10 backdrop-blur-[2px] z-[10005] pointer-events-none rounded-sm"
           style={{
@@ -239,44 +243,47 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         />
       )}
 
-      {/* Desktop Icons */}
-      <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
-        {desktopFiles.map(file => {
-          const app = file.type === FileType.APP ? BUILT_IN_APPS.find(a => a.id === file.content) : null;
-          const isDir = file.type === FileType.DIRECTORY;
-          if (!app && !isDir) return null;
-          
-          const icon = isDir ? 'fa-folder' : (app?.icon || 'fa-file');
-          const name = isDir ? file.name : (app?.name || file.name);
-          const color = isDir ? '#818cf8' : user.settings.accentColor;
-          const isSelected = selectedPaths.includes(file.path);
+      {/* Desktop Icons - Disappear if UI folder is deleted */}
+      {integrity.hasUI && (
+        <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
+          {desktopFiles.map(file => {
+            const app = file.type === FileType.APP ? BUILT_IN_APPS.find(a => a.id === file.content) : null;
+            const isDir = file.type === FileType.DIRECTORY;
+            if (!app && !isDir) return null;
+            
+            const icon = isDir ? 'fa-folder' : (app?.icon || 'fa-file');
+            const name = isDir ? file.name : (app?.name || file.name);
+            const color = isDir ? '#818cf8' : user.settings.accentColor;
+            const isSelected = selectedPaths.includes(file.path);
 
-          const isSystemApp = app && SYSTEM_APP_IDS.includes(app.id);
-          const shouldShowIcon = !isSystemApp || (isSystemApp && integrity.hasIcons);
+            const isSystemApp = app && SYSTEM_APP_IDS.includes(app.id);
+            const shouldShowIcon = !isSystemApp || (isSystemApp && integrity.hasIcons);
 
-          return (
-            <div 
-              key={file.path} 
-              data-path={file.path}
-              className={`desktop-icon w-24 h-28 flex flex-col items-center justify-center group rounded-2xl transition-all ${isSelected ? 'bg-white/20' : 'hover:bg-white/10'}`}
-              onDoubleClick={() => isDir ? launchApp('explorer') : launchApp(app?.id || '')}
-              onClick={(e) => { e.stopPropagation(); setSelectedPaths([file.path]); }}
-            >
-              <div className="w-16 h-16 flex items-center justify-center rounded-[1.25rem] bg-black/20 backdrop-blur-xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform overflow-hidden">
-                {shouldShowIcon ? (
-                   <i className={`fas ${icon} text-white text-2xl drop-shadow-lg`} style={{ color }}></i>
-                ) : (
-                   <div className="w-8 h-8 bg-white/5 border border-dashed border-white/10 rounded-md"></div>
-                )}
+            return (
+              <div 
+                key={file.path} 
+                data-path={file.path}
+                className={`desktop-icon w-24 h-28 flex flex-col items-center justify-center group rounded-2xl transition-all ${isSelected ? 'bg-white/20' : 'hover:bg-white/10'}`}
+                onDoubleClick={() => isDir ? launchApp('explorer') : launchApp(app?.id || '')}
+                onClick={(e) => { e.stopPropagation(); setSelectedPaths([file.path]); }}
+              >
+                <div className="w-16 h-16 flex items-center justify-center rounded-[1.25rem] bg-black/20 backdrop-blur-xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform overflow-hidden">
+                  {shouldShowIcon ? (
+                    <i className={`fas ${icon} text-white text-2xl drop-shadow-lg`} style={{ color }}></i>
+                  ) : (
+                    <div className="w-8 h-8 bg-white/5 border border-dashed border-white/10 rounded-md"></div>
+                  )}
+                </div>
+                <span className="text-white text-[10px] mt-3.5 text-center drop-shadow-md font-black uppercase tracking-widest px-2 truncate w-full">
+                  {name}
+                </span>
               </div>
-              <span className="text-white text-[10px] mt-3.5 text-center drop-shadow-md font-black uppercase tracking-widest px-2 truncate w-full">
-                {name}
-              </span>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
+      {/* Windows - These stay even if UI folder is deleted (frozen in space) */}
       {windows.map(win => {
         const appInfo = BUILT_IN_APPS.find(a => a.id === win.appId);
         const AppComp = appInfo?.component;
@@ -288,14 +295,14 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
             state={win} 
             isActive={activeWindowId === win.id}
             corruptionLevel={corruptionLevel}
-            isFrozen={isFrozen}
+            isFrozen={isFrozen || !integrity.hasUI}
             integrity={integrity}
             isSystemApp={isSystemWin}
             accentColor={user.settings.accentColor}
             glassOpacity={user.settings.glassOpacity}
             onClose={() => closeWindow(win.id)}
             onFocus={() => focusWindow(win.id)}
-            onUpdate={(newState) => !isFrozen && setWindows(prev => prev.map(w => w.id === win.id ? newState : w))}
+            onUpdate={(newState) => !isFrozen && integrity.hasUI && setWindows(prev => prev.map(w => w.id === win.id ? newState : w))}
           >
             <div className="window-content h-full w-full">
               {AppComp && <AppComp installPrompt={installPrompt} launchApp={launchApp} integrity={integrity} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
@@ -304,18 +311,20 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         );
       })}
 
-      {!isFrozen && (
+      {!isFrozen && integrity.hasUI && (
         <StartMenu user={user} apps={BUILT_IN_APPS} systemAppIds={SYSTEM_APP_IDS} onLaunch={launchApp} isOpen={isStartOpen} integrity={integrity} />
       )}
 
-      <Taskbar 
-        user={user} apps={BUILT_IN_APPS} windows={windows} activeId={activeWindowId} 
-        systemAppIds={SYSTEM_APP_IDS} integrity={integrity}
-        onLaunch={launchApp} onFocus={focusWindow} onMinimizeAll={() => !isFrozen && setWindows(prev => prev.map(w => ({ ...w, isMinimized: true })))}
-        onStartToggle={(e) => !isFrozen && setIsStartOpen(!isStartOpen)} isStartOpen={isStartOpen} installPrompt={installPrompt}
-      />
+      {integrity.hasUI && (
+        <Taskbar 
+          user={user} apps={BUILT_IN_APPS} windows={windows} activeId={activeWindowId} 
+          systemAppIds={SYSTEM_APP_IDS} integrity={integrity}
+          onLaunch={launchApp} onFocus={focusWindow} onMinimizeAll={() => !isFrozen && setWindows(prev => prev.map(w => ({ ...w, isMinimized: true })))}
+          onStartToggle={(e) => !isFrozen && setIsStartOpen(!isStartOpen)} isStartOpen={isStartOpen} installPrompt={installPrompt}
+        />
+      )}
 
-      {menu && integrity.hasMenu && !isFrozen && (
+      {menu && integrity.hasMenu && !isFrozen && integrity.hasUI && (
         <ContextMenu x={menu.x} y={menu.y} items={corruptionLevel > 0.7 ? [{ label: 'CRITICAL_ERROR', icon: 'fa-triangle-exclamation', action: () => {} }] : [{ label: 'Refresh', icon: 'fa-sync', action: () => window.location.reload() }]} />
       )}
     </div>

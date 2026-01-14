@@ -21,12 +21,12 @@ class FileSystemService {
   }
 
   private generateMassiveSystem() {
-    // Basic system structure
     const systemStubs = [
       { path: '/sys/fonts/segoe_ui.ttf', critical: true },
       { path: '/sys/fonts/roboto.ttf', critical: true },
       { path: '/sys/icons/main_set.dll', critical: true },
       { path: '/sys/icons/legacy_pack.dll', critical: true },
+      { path: '/sys/images/wallpaper_system.img', critical: true },
     ];
 
     systemStubs.forEach(stub => {
@@ -162,7 +162,9 @@ class FileSystemService {
       hasIcons: this.exists('/sys/icons/main_set.dll'),
       hasMenu: this.exists('/sys/ui/menu.srv'),
       hasFonts: this.exists('/sys/fonts/segoe_ui.ttf'),
-      hasUIHandler: this.exists('/sys/bin/ui_handler.srv')
+      hasUIHandler: this.exists('/sys/bin/ui_handler.srv'),
+      hasImages: this.exists('/sys/images/wallpaper_system.img'),
+      hasUI: this.exists('/sys/ui/compositor.sys')
     };
   }
 }
