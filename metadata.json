@@ -1,0 +1,9 @@
+{
+  "name": "CuriumOS",
+  "description": "A high-performance web-based operating system featuring a functional virtual file system, system corruption simulation, and a modular application architecture.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
