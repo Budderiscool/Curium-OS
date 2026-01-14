@@ -4,7 +4,7 @@ CuriumOS is a high-performance, web-based operating system built with React, Typ
 
 ## 🚀 Deployment Configuration
 
-To deploy CuriumOS to Cloudflare Pages with Worker functions, use the following `wrangler.jsonc` configuration. Create this file in your project root:
+To deploy CuriumOS to Cloudflare Pages with Worker functions, use the following `wrangler.jsonc` configuration. This file is required in your project root for the deployment to succeed.
 
 ```json
 {
@@ -20,7 +20,7 @@ To deploy CuriumOS to Cloudflare Pages with Worker functions, use the following 
   "kv_namespaces": [
     {
       "binding": "CURIUM_KV",
-      "id": "YOUR_KV_NAMESPACE_ID"
+      "id": "cf64a753630d41829e083c0f86235161"
     }
   ],
   "observability": {
