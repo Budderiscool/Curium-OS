@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WindowState, AppManifest, User, FileType } from '../types';
 import { fs } from '../services/FileSystem';
@@ -64,7 +63,9 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   }, []);
 
   const updateSystemState = useCallback(() => {
-    setIntegrity(fs.getIntegrityReport());
+    const currentIntegrity = fs.getIntegrityReport();
+    setIntegrity(currentIntegrity);
+    
     // In critical corruption, some files "disappear" from the UI randomly
     let files = fs.getFilesInDirectory('/home/user/desktop');
     if (corruptionLevel > 0.6) {
@@ -83,7 +84,6 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   }, [updateSystemState, refreshUser]);
 
   const launchApp = (appId: string) => {
-    // Subtle degradation: Launch occasionally fails when corrupted
     if (corruptionLevel > 0.4 && Math.random() < (corruptionLevel - 0.3)) {
       console.warn(`System module ${appId} failed to initialize.`);
       return;
@@ -166,7 +166,6 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
 
   const handleMouseUp = () => {
     if (selection) {
-      // Calculate intersection
       const rect = {
         left: Math.min(selection.startX, selection.endX),
         top: Math.min(selection.startY, selection.endY),
@@ -191,7 +190,12 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
     if ((e.target as HTMLElement).closest('.window-content')) return;
     e.preventDefault();
     
-    // Corruption: Context menu fails or shows error
+    // Deleting /sys/ui/menu.srv breaks context menus
+    if (!integrity.hasMenu) {
+      console.warn("UI Module Error: Menu service unavailable.");
+      return;
+    }
+
     if (corruptionLevel > 0.7) {
       setMenu({ x: e.clientX, y: e.clientY });
       return;
@@ -212,10 +216,12 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
   return (
     <div 
       ref={desktopRef}
-      className={`relative h-screen w-screen overflow-hidden bg-cover bg-center select-none transition-all duration-1000 ease-in-out`}
+      className={`relative h-screen w-screen overflow-hidden bg-cover bg-center select-none transition-all duration-1000 ease-in-out ${!integrity.hasFonts ? 'opacity-0 pointer-events-none' : ''}`}
       style={{ 
         backgroundImage: `url(${user.settings.wallpaper})`,
-        filter: user.accessibility.highContrast ? 'contrast(1.5) grayscale(0.5)' : 'none'
+        filter: user.accessibility.highContrast ? 'contrast(1.5) grayscale(0.5)' : 'none',
+        // If fonts are missing, hide all text via CSS filter or opacity
+        fontFamily: integrity.hasFonts ? 'inherit' : 'monospace'
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
@@ -258,11 +264,15 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
               onDoubleClick={() => isDir ? launchApp('explorer') : launchApp(app?.id || '')}
               onClick={(e) => { e.stopPropagation(); setSelectedPaths([file.path]); }}
             >
-              <div className="w-16 h-16 flex items-center justify-center rounded-[1.25rem] bg-black/20 backdrop-blur-xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform">
-                <i className={`fas ${icon} text-white text-2xl drop-shadow-lg`} style={{ color }}></i>
+              <div className="w-16 h-16 flex items-center justify-center rounded-[1.25rem] bg-black/20 backdrop-blur-xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform overflow-hidden">
+                {integrity.hasIcons ? (
+                   <i className={`fas ${icon} text-white text-2xl drop-shadow-lg`} style={{ color }}></i>
+                ) : (
+                   <div className="w-8 h-8 bg-white/10 border border-dashed border-white/20 rounded-md"></div>
+                )}
               </div>
-              <span className="text-white text-[10px] mt-3.5 text-center drop-shadow-md font-black uppercase tracking-widest px-2 truncate w-full">
-                {name}
+              <span className={`text-white text-[10px] mt-3.5 text-center drop-shadow-md font-black uppercase tracking-widest px-2 truncate w-full ${!integrity.hasFonts ? 'text-transparent bg-white/10 rounded' : ''}`}>
+                {integrity.hasFonts ? name : '####'}
               </span>
             </div>
           );
@@ -279,14 +289,15 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
             state={win} 
             isActive={activeWindowId === win.id}
             corruptionLevel={corruptionLevel}
+            integrity={integrity}
             accentColor={user.settings.accentColor}
             glassOpacity={user.settings.glassOpacity}
             onClose={() => closeWindow(win.id)}
             onFocus={() => focusWindow(win.id)}
             onUpdate={(newState) => setWindows(prev => prev.map(w => w.id === win.id ? newState : w))}
           >
-            <div className="window-content h-full w-full">
-              {AppComp && <AppComp installPrompt={installPrompt} launchApp={launchApp} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
+            <div className={`window-content h-full w-full ${!integrity.hasFonts ? 'text-transparent' : ''}`}>
+              {AppComp && <AppComp installPrompt={installPrompt} launchApp={launchApp} integrity={integrity} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
             </div>
           </Window>
         );
@@ -296,7 +307,8 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         user={user} 
         apps={BUILT_IN_APPS} 
         onLaunch={launchApp} 
-        isOpen={isStartOpen} 
+        isOpen={isStartOpen}
+        integrity={integrity}
       />
 
       <Taskbar 
@@ -313,14 +325,31 @@ const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: numbe
         onMinimizeAll={minimizeAll}
         isStartOpen={isStartOpen}
         installPrompt={installPrompt}
+        integrity={integrity}
       />
 
-      {menu && (
+      {menu && integrity.hasMenu && (
         <ContextMenu 
           x={menu.x} 
           y={menu.y} 
-          items={menuItems} 
+          items={menuItems}
+          integrity={integrity}
         />
+      )}
+
+      {/* Font Failure Overlay */}
+      {!integrity.hasFonts && (
+        <div className="fixed inset-0 z-[11000] bg-black/90 flex flex-col items-center justify-center p-12 text-center font-mono">
+           <i className="fas fa-font text-6xl text-red-500 mb-8 animate-pulse"></i>
+           <h1 className="text-3xl font-black text-white mb-4">CRITICAL SYSTEM ERROR</h1>
+           <p className="text-white/40 text-sm max-w-lg mb-12">The system font rasterizer module (/sys/ui/fonts.dll) has been removed or corrupted. UI rendering cannot proceed without text primitives.</p>
+           <button 
+             onClick={() => kernel.reinstall()}
+             className="px-8 py-4 bg-white text-black font-black uppercase tracking-widest rounded-xl hover:bg-gray-200"
+           >
+             Emergency Recovery
+           </button>
+        </div>
       )}
     </div>
   );

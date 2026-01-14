@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { WindowState } from '../types';
 
@@ -6,6 +5,7 @@ interface Props {
   state: WindowState;
   isActive: boolean;
   corruptionLevel: number;
+  integrity: { hasIcons: boolean; hasFonts: boolean };
   accentColor: string;
   glassOpacity: number;
   onClose: () => void;
@@ -14,7 +14,7 @@ interface Props {
   children: React.ReactNode;
 }
 
-const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
+const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, integrity, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
@@ -24,7 +24,6 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, accentColor
     onFocus();
     if ((e.target as HTMLElement).closest('.window-controls')) return;
     
-    // Subtle Degradation: Windows stop moving at high corruption
     if (corruptionLevel > 0.6) {
       console.warn("Window manager link lost.");
       return;
@@ -109,7 +108,6 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, accentColor
         backgroundColor: `rgba(15, 15, 15, ${glassOpacity})`,
         backdropFilter: `blur(${glassOpacity * 40}px)`,
         borderColor: isActive ? `${accentColor}55` : 'rgba(255,255,255,0.08)',
-        // Corruption visual: ghosting
         opacity: corruptionLevel > 0.8 ? 0.3 : 1
       }}
       onClick={onFocus}
@@ -119,9 +117,13 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, accentColor
         onMouseDown={handleMouseDown}
       >
         <div className="flex items-center gap-3">
-          <i className={`fas ${state.icon} text-sm`} style={{ color: isActive ? accentColor : 'rgba(255,255,255,0.3)' }}></i>
-          <span className={`text-[11px] font-black uppercase tracking-widest truncate max-w-[200px] ${isActive ? 'text-white' : 'text-white/40'}`}>
-            {state.title}
+          {integrity.hasIcons ? (
+            <i className={`fas ${state.icon} text-sm`} style={{ color: isActive ? accentColor : 'rgba(255,255,255,0.3)' }}></i>
+          ) : (
+            <div className="w-3 h-3 bg-white/10 rounded-sm"></div>
+          )}
+          <span className={`text-[11px] font-black uppercase tracking-widest truncate max-w-[200px] ${isActive ? 'text-white' : 'text-white/40'} ${!integrity.hasFonts ? 'text-transparent bg-white/10' : ''}`}>
+            {integrity.hasFonts ? state.title : '####'}
           </span>
         </div>
         <div className="window-controls flex items-center gap-4">
@@ -129,13 +131,13 @@ const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, accentColor
             className="w-8 h-8 rounded-lg flex items-center justify-center text-white/40 hover:text-white hover:bg-white/5 transition-all"
             onClick={(e) => { e.stopPropagation(); onUpdate({ ...state, isMinimized: true }); }}
           >
-            <i className="fas fa-minus text-[10px]"></i>
+            {integrity.hasIcons ? <i className="fas fa-minus text-[10px]"></i> : <div className="w-2 h-0.5 bg-white/40"></div>}
           </button>
           <button 
             className="w-8 h-8 rounded-lg flex items-center justify-center text-red-400/40 hover:text-red-400 hover:bg-red-400/10 transition-all"
             onClick={(e) => { e.stopPropagation(); onClose(); }}
           >
-            <i className="fas fa-times text-[10px]"></i>
+            {integrity.hasIcons ? <i className="fas fa-times text-[10px]"></i> : <div className="w-2.5 h-2.5 border border-red-400/40"></div>}
           </button>
         </div>
       </div>

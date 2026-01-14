@@ -6,9 +6,10 @@ import { kernel } from '../services/Kernel';
 interface Props {
   initialPath?: string;
   onLaunchApp?: (id: string) => void;
+  integrity?: { hasIcons: boolean; hasFonts: boolean };
 }
 
-const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
+const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp, integrity }) => {
   const [currentPath, setCurrentPath] = useState(initialPath);
   const [files, setFiles] = useState<VFile[]>([]);
   const [history, setHistory] = useState<string[]>([initialPath]);
@@ -60,7 +61,7 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
     if (currentPath === '/') return;
     const parts = currentPath.split('/').filter(Boolean);
     parts.pop();
-    navigateTo('/' + parts.join('/'));
+    navigateTo('/' + (parts.length > 0 ? '/' + parts.join('/') : '/'));
   };
 
   const handleOpen = (file: VFile) => {
@@ -69,7 +70,6 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
     } else if (file.type === FileType.APP && onLaunchApp && file.content) {
       onLaunchApp(file.content);
     } else if (file.type === FileType.FILE || file.type === FileType.SYSTEM) {
-      // Logic for opening in Editor could go here
       if (onLaunchApp) onLaunchApp('editor');
     }
   };
@@ -89,9 +89,11 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
 
   const breadcrumbs = currentPath.split('/').filter(Boolean);
   const accentColor = user?.settings.accentColor || '#6366f1';
+  const hasIcons = integrity?.hasIcons !== false;
+  const hasFonts = integrity?.hasFonts !== false;
 
   return (
-    <div className="h-full bg-[#0d0d0d] text-white flex select-none overflow-hidden">
+    <div className={`h-full bg-[#0d0d0d] text-white flex select-none overflow-hidden ${!hasFonts ? 'text-transparent' : ''}`}>
       {/* Sidebar */}
       <div className="w-56 border-r border-white/5 bg-black/40 p-4 flex flex-col gap-6 shrink-0">
         <div className="px-3">
@@ -106,8 +108,12 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
                 }`}
                 style={currentPath === link.path ? { borderLeft: `3px solid ${accentColor}` } : {}}
               >
-                <i className={`fas ${link.icon} w-4 text-[10px]`}></i>
-                <span className="truncate">{link.label}</span>
+                {hasIcons ? (
+                   <i className={`fas ${link.icon} w-4 text-[10px]`}></i>
+                ) : (
+                   <div className="w-3 h-3 bg-white/10 rounded-sm"></div>
+                )}
+                <span className="truncate">{hasFonts ? link.label : '####'}</span>
               </button>
             ))}
           </div>
@@ -115,11 +121,11 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
 
         <div className="px-3 mt-auto">
           <div className="p-4 bg-white/[0.02] border border-white/5 rounded-2xl">
-             <div className="text-[8px] font-black uppercase tracking-widest text-white/20 mb-2">Storage Usage</div>
+             <div className="text-[8px] font-black uppercase tracking-widest text-white/20 mb-2">System Load</div>
              <div className="h-1 bg-white/5 rounded-full overflow-hidden">
                <div className="h-full bg-emerald-500 w-[12%] shadow-[0_0_10px_rgba(16,185,129,0.3)]"></div>
              </div>
-             <div className="text-[8px] mt-2 text-white/10 font-mono">5.0 MB Capacity</div>
+             <div className="text-[8px] mt-2 text-white/10 font-mono">VFS INDEX: {fs.getFiles().length}</div>
           </div>
         </div>
       </div>
@@ -153,7 +159,7 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
           </div>
           
           <div className="flex-1 flex items-center bg-black/60 border border-white/10 rounded-xl px-4 h-9 text-[10px] font-mono gap-3 overflow-hidden">
-            <i className="fas fa-hdd text-white/20"></i>
+            {hasIcons && <i className="fas fa-hdd text-white/20"></i>}
             <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap">
               <span className="text-white/40 cursor-pointer hover:text-white" onClick={() => navigateTo('/')}>root</span>
               {breadcrumbs.map((crumb, idx) => (
@@ -168,7 +174,7 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
           </div>
 
           <div className="relative group">
-            <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-white/20 text-[10px]"></i>
+            {hasIcons && <i className="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-white/20 text-[10px]"></i>}
             <input 
               placeholder="Search..."
               className="w-48 bg-white/5 border border-white/10 rounded-xl h-9 pl-9 pr-4 text-[10px] outline-none focus:border-white/20 transition-all"
@@ -181,7 +187,7 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
           <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-x-4 gap-y-8">
             {files.length === 0 && (
               <div className="col-span-full py-32 text-center flex flex-col items-center gap-6 opacity-20">
-                <i className="fas fa-folder-open text-7xl"></i>
+                {hasIcons && <i className="fas fa-folder-open text-7xl"></i>}
                 <div className="space-y-1">
                    <p className="text-sm font-bold uppercase tracking-widest">No Items Found</p>
                    <p className="text-[10px]">This directory is currently empty.</p>
@@ -200,18 +206,22 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
                   file.type === FileType.APP ? 'text-emerald-400/80' :
                   file.isCritical ? 'text-red-500/80' : 'text-blue-400/80'
                 }`}>
-                  <i className={`fas ${
-                    file.type === FileType.DIRECTORY ? 'fa-folder' : 
-                    file.type === FileType.APP ? 'fa-rocket' : 
-                    file.type === FileType.SYSTEM ? 'fa-shield-halved' : 'fa-file-lines'
-                  } drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)]`}></i>
+                  {hasIcons ? (
+                    <i className={`fas ${
+                      file.type === FileType.DIRECTORY ? 'fa-folder' : 
+                      file.type === FileType.APP ? 'fa-rocket' : 
+                      file.type === FileType.SYSTEM ? 'fa-shield-halved' : 'fa-file-lines'
+                    } drop-shadow-[0_4px_8px_rgba(0,0,0,0.3)]`}></i>
+                  ) : (
+                    <div className="w-10 h-10 border border-white/10 rounded-lg"></div>
+                  )}
                   {file.isCritical && (
                     <div className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-black"></div>
                   )}
                 </div>
                 <div className="w-full text-center space-y-0.5">
-                  <div className="text-[10px] font-bold truncate w-full px-2 text-white/90">
-                    {file.name}
+                  <div className={`text-[10px] font-bold truncate w-full px-2 text-white/90 ${!hasFonts ? 'bg-white/5 rounded' : ''}`}>
+                    {hasFonts ? file.name : '####'}
                   </div>
                   <div className="text-[8px] opacity-20 font-black uppercase tracking-widest">{file.type}</div>
                 </div>
@@ -231,14 +241,14 @@ const Explorer: React.FC<Props> = ({ initialPath = '/', onLaunchApp }) => {
         <div className="p-3 bg-black/60 border-t border-white/10 flex items-center justify-between text-[8px] font-black uppercase tracking-[0.2em] text-white/20 px-6 backdrop-blur-xl">
           <div className="flex gap-6">
             <span>{files.length} Object(s)</span>
-            <span>{currentPath}</span>
+            <span className="truncate max-w-[200px]">{currentPath}</span>
           </div>
           <div className="flex items-center gap-6">
             <span className="flex items-center gap-2">
               <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/50"></div>
               File System Ready
             </span>
-            <span>VFS_PRO_X64</span>
+            <span>VFS_INDEX_STABLE</span>
           </div>
         </div>
       </div>
