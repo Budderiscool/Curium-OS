@@ -5,6 +5,7 @@ import { WindowState } from '../types';
 interface Props {
   state: WindowState;
   isActive: boolean;
+  corruptionLevel: number;
   accentColor: string;
   glassOpacity: number;
   onClose: () => void;
@@ -13,7 +14,7 @@ interface Props {
   children: React.ReactNode;
 }
 
-const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
+const Window: React.FC<Props> = ({ state, isActive, corruptionLevel, accentColor, glassOpacity, onClose, onFocus, onUpdate, children }) => {
   const [isDragging, setIsDragging] = useState(false);
   const [isResizing, setIsResizing] = useState(false);
   const dragStart = useRef({ x: 0, y: 0 });
@@ -22,6 +23,13 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
   const handleMouseDown = (e: React.MouseEvent) => {
     onFocus();
     if ((e.target as HTMLElement).closest('.window-controls')) return;
+    
+    // Subtle Degradation: Windows stop moving at high corruption
+    if (corruptionLevel > 0.6) {
+      console.warn("Window manager link lost.");
+      return;
+    }
+
     setIsDragging(true);
     dragStart.current = { x: e.clientX - state.x, y: e.clientY - state.y };
   };
@@ -29,6 +37,8 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
   const handleResizeStart = (e: React.MouseEvent) => {
     e.stopPropagation();
     onFocus();
+    if (corruptionLevel > 0.6) return;
+    
     setIsResizing(true);
     resizeStart.current = { 
       width: state.width, 
@@ -44,9 +54,8 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
         let nextX = e.clientX - dragStart.current.x;
         let nextY = e.clientY - dragStart.current.y;
 
-        // Clamp to screen bounds
         nextX = Math.max(0, Math.min(nextX, window.innerWidth - state.width));
-        nextY = Math.max(0, Math.min(nextY, window.innerHeight - 60)); // Keep title bar visible above taskbar area
+        nextY = Math.max(0, Math.min(nextY, window.innerHeight - 60));
 
         onUpdate({
           ...state,
@@ -60,7 +69,6 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
         let nextWidth = Math.max(300, resizeStart.current.width + deltaX);
         let nextHeight = Math.max(200, resizeStart.current.height + deltaY);
 
-        // Prevent resizing off-screen
         nextWidth = Math.min(nextWidth, window.innerWidth - state.x);
         nextHeight = Math.min(nextHeight, window.innerHeight - state.y - 40);
 
@@ -91,7 +99,7 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
 
   return (
     <div 
-      className={`absolute flex flex-col border rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-out ${isActive ? 'shadow-indigo-500/10' : 'shadow-black/50'}`}
+      className={`window absolute flex flex-col border rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 ease-out ${isActive ? 'shadow-indigo-500/10' : 'shadow-black/50'}`}
       style={{
         left: state.x,
         top: state.y,
@@ -100,11 +108,12 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
         zIndex: state.zIndex,
         backgroundColor: `rgba(15, 15, 15, ${glassOpacity})`,
         backdropFilter: `blur(${glassOpacity * 40}px)`,
-        borderColor: isActive ? `${accentColor}55` : 'rgba(255,255,255,0.08)'
+        borderColor: isActive ? `${accentColor}55` : 'rgba(255,255,255,0.08)',
+        // Corruption visual: ghosting
+        opacity: corruptionLevel > 0.8 ? 0.3 : 1
       }}
       onClick={onFocus}
     >
-      {/* Window Title Bar */}
       <div 
         className={`h-12 flex items-center justify-between px-5 cursor-default select-none border-b border-white/5 transition-colors ${isActive ? 'bg-white/5' : 'bg-transparent'}`}
         onMouseDown={handleMouseDown}
@@ -131,12 +140,10 @@ const Window: React.FC<Props> = ({ state, isActive, accentColor, glassOpacity, o
         </div>
       </div>
 
-      {/* Window Content */}
       <div className="flex-1 overflow-auto bg-transparent relative">
         {children}
       </div>
 
-      {/* Resize Handle */}
       <div 
         className="absolute bottom-0 right-0 w-6 h-6 cursor-nwse-resize flex items-end justify-end p-1 group z-[10010]"
         onMouseDown={handleResizeStart}

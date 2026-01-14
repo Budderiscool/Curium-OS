@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { OSStatus, User } from './types';
 import { kernel } from './services/Kernel';
@@ -12,25 +13,28 @@ const App: React.FC = () => {
   const [status, setStatus] = useState<OSStatus>(OSStatus.BOOTING);
   const [user, setUser] = useState<User | null>(kernel.getCurrentUser());
   const [installPrompt, setInstallPrompt] = useState<any>(null);
-  const [isUnstable, setIsUnstable] = useState(false);
+  const [corruptionLevel, setCorruptionLevel] = useState(0);
 
   useEffect(() => {
-    // Check initial integrity
     const integrity = fs.getIntegrityReport();
     if (!integrity.hasKernel) {
       setStatus(OSStatus.FAILURE);
     }
 
-    // Capture PWA Install Prompt
     const handleInstallPrompt = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
     };
 
     const handleInstability = () => {
-      setIsUnstable(true);
-      // After some time in instability, force a crash
-      setTimeout(() => setStatus(OSStatus.FAILURE), 15000);
+      // Increase corruption incrementally
+      setCorruptionLevel(prev => {
+        const next = Math.min(prev + 0.15, 1.0);
+        if (next >= 1.0) {
+          setTimeout(() => setStatus(OSStatus.FAILURE), 5000);
+        }
+        return next;
+      });
     };
 
     window.addEventListener('beforeinstallprompt', handleInstallPrompt);
@@ -67,14 +71,14 @@ const App: React.FC = () => {
           <OOBE onComplete={handleOOBEComplete} />
         );
       case OSStatus.DESKTOP:
-        return user ? <Desktop user={user} installPrompt={installPrompt} /> : <FailureScreen />;
+        return user ? <Desktop user={user} installPrompt={installPrompt} corruptionLevel={corruptionLevel} /> : <FailureScreen />;
       default:
         return <FailureScreen />;
     }
   };
 
   return (
-    <div className={`h-screen w-screen bg-black overflow-hidden relative ${isUnstable ? 'system-glitch' : ''}`}>
+    <div className="h-screen w-screen bg-black overflow-hidden relative">
       {renderContent()}
     </div>
   );

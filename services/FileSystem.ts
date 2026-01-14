@@ -15,7 +15,29 @@ class FileSystemService {
       this.files = JSON.parse(stored);
     } else {
       this.files = [...SYSTEM_FILES];
+      this.generateMassiveSystem();
       this.save();
+    }
+  }
+
+  private generateMassiveSystem() {
+    // Generate thousands of system modules to simulate a real OS
+    const prefixes = ['lib', 'bin', 'src', 'driver', 'mod', 'cache', 'log'];
+    const subdirs = ['network', 'audio', 'video', 'core', 'security', 'virt', 'hid'];
+    
+    for (let i = 0; i < 2000; i++) {
+      const prefix = prefixes[i % prefixes.length];
+      const subdir = subdirs[Math.floor(i / (2000 / subdirs.length))];
+      const name = `${prefix}_${i.toString().padStart(4, '0')}.sys`;
+      const path = `/sys/${subdir}/${name}`;
+      
+      this.files.push({
+        name,
+        path,
+        type: FileType.SYSTEM,
+        isCritical: Math.random() > 0.98, // Some are critical to make deletion dangerous
+        content: `CURIUM_MODULE_HEX_${Math.random().toString(16).slice(2, 10).toUpperCase()}`
+      });
     }
   }
 
@@ -65,7 +87,9 @@ class FileSystemService {
   }
 
   reset() {
+    localStorage.removeItem('curium_fs');
     this.files = [...SYSTEM_FILES];
+    this.generateMassiveSystem();
     this.save();
     window.dispatchEvent(new CustomEvent('curium_fs_changed'));
   }

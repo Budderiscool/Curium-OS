@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { WindowState, AppManifest, User, FileType } from '../types';
 import { fs } from '../services/FileSystem';
 import { kernel } from '../services/Kernel';
@@ -44,7 +44,7 @@ const BUILT_IN_APPS: AppManifest[] = [
   { id: 'sysinfo', name: 'System Info', description: 'Diagnostics & hardware', icon: 'fa-info-circle', component: SysInfo },
 ];
 
-const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUser, installPrompt }) => {
+const Desktop: React.FC<{ user: User, installPrompt: any, corruptionLevel: number }> = ({ user: initialUser, installPrompt, corruptionLevel }) => {
   const [user, setUser] = useState<User>(initialUser);
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
@@ -52,6 +52,11 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUs
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [desktopFiles, setDesktopFiles] = useState(fs.getFilesInDirectory('/home/user/desktop'));
   const [integrity, setIntegrity] = useState(fs.getIntegrityReport());
+  
+  // Multi-Selection State
+  const [selection, setSelection] = useState<{ startX: number, startY: number, endX: number, endY: number } | null>(null);
+  const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
+  const desktopRef = useRef<HTMLDivElement>(null);
 
   const refreshUser = useCallback(() => {
     const updated = kernel.getCurrentUser();
@@ -60,8 +65,13 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUs
 
   const updateSystemState = useCallback(() => {
     setIntegrity(fs.getIntegrityReport());
-    setDesktopFiles(fs.getFilesInDirectory('/home/user/desktop'));
-  }, []);
+    // In critical corruption, some files "disappear" from the UI randomly
+    let files = fs.getFilesInDirectory('/home/user/desktop');
+    if (corruptionLevel > 0.6) {
+      files = files.filter(() => Math.random() > (corruptionLevel - 0.5));
+    }
+    setDesktopFiles(files);
+  }, [corruptionLevel]);
 
   useEffect(() => {
     window.addEventListener('curium_fs_changed', updateSystemState);
@@ -73,11 +83,16 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUs
   }, [updateSystemState, refreshUser]);
 
   const launchApp = (appId: string) => {
+    // Subtle degradation: Launch occasionally fails when corrupted
+    if (corruptionLevel > 0.4 && Math.random() < (corruptionLevel - 0.3)) {
+      console.warn(`System module ${appId} failed to initialize.`);
+      return;
+    }
+
     const app = BUILT_IN_APPS.find(a => a.id === appId);
     if (!app) return;
 
     if (!integrity.hasShell && appId !== 'terminal') {
-      alert("CRITICAL ERROR: UI Shell component missing. Run terminal repair.");
       return;
     }
 
@@ -130,23 +145,97 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUs
     setActiveWindowId(null);
   };
 
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('.window') || (e.target as HTMLElement).closest('.desktop-icon') || (e.target as HTMLElement).closest('.taskbar')) return;
+    setMenu(null);
+    setIsStartOpen(false);
+    setSelectedPaths([]);
+    setSelection({
+      startX: e.clientX,
+      startY: e.clientY,
+      endX: e.clientX,
+      endY: e.clientY
+    });
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (selection) {
+      setSelection(prev => prev ? { ...prev, endX: e.clientX, endY: e.clientY } : null);
+    }
+  };
+
+  const handleMouseUp = () => {
+    if (selection) {
+      // Calculate intersection
+      const rect = {
+        left: Math.min(selection.startX, selection.endX),
+        top: Math.min(selection.startY, selection.endY),
+        right: Math.max(selection.startX, selection.endX),
+        bottom: Math.max(selection.startY, selection.endY)
+      };
+
+      const items = document.querySelectorAll('.desktop-icon');
+      const selected: string[] = [];
+      items.forEach((item: any) => {
+        const itemRect = item.getBoundingClientRect();
+        if (itemRect.left < rect.right && itemRect.right > rect.left && itemRect.top < rect.bottom && itemRect.bottom > rect.top) {
+          selected.push(item.getAttribute('data-path') || '');
+        }
+      });
+      setSelectedPaths(selected);
+      setSelection(null);
+    }
+  };
+
   const handleContextMenu = (e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('.window-content')) return;
     e.preventDefault();
+    
+    // Corruption: Context menu fails or shows error
+    if (corruptionLevel > 0.7) {
+      setMenu({ x: e.clientX, y: e.clientY });
+      return;
+    }
     setMenu({ x: e.clientX, y: e.clientY });
   };
 
+  const menuItems = corruptionLevel > 0.7 ? [
+    { label: 'CRITICAL_ERROR_0xFB', icon: 'fa-triangle-exclamation', action: () => {} },
+    { label: 'RETRY_LINK_SUBSYSTEM', icon: 'fa-sync', action: () => window.location.reload() }
+  ] : [
+    { label: 'Refresh System', icon: 'fa-sync', action: () => window.location.reload() },
+    { label: 'Launch Terminal', icon: 'fa-terminal', action: () => launchApp('terminal') },
+    { label: 'Personalization', icon: 'fa-palette', action: () => launchApp('settings') },
+    { label: 'Clean Desktop', icon: 'fa-broom', action: () => updateSystemState() },
+  ];
+
   return (
     <div 
+      ref={desktopRef}
       className={`relative h-screen w-screen overflow-hidden bg-cover bg-center select-none transition-all duration-1000 ease-in-out`}
       style={{ 
         backgroundImage: `url(${user.settings.wallpaper})`,
         filter: user.accessibility.highContrast ? 'contrast(1.5) grayscale(0.5)' : 'none'
       }}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
       onContextMenu={handleContextMenu}
-      onClick={() => { setMenu(null); setIsStartOpen(false); }}
     >
       <div className="absolute inset-0 bg-black/30 pointer-events-none"></div>
+
+      {/* Selection Box UI */}
+      {selection && (
+        <div 
+          className="absolute border border-white/40 bg-white/10 backdrop-blur-[2px] z-[10005] pointer-events-none rounded-sm"
+          style={{
+            left: Math.min(selection.startX, selection.endX),
+            top: Math.min(selection.startY, selection.endY),
+            width: Math.abs(selection.endX - selection.startX),
+            height: Math.abs(selection.endY - selection.startY)
+          }}
+        />
+      )}
 
       {/* Desktop Icons Container */}
       <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
@@ -159,12 +248,15 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUs
           const icon = isDir ? 'fa-folder' : (app?.icon || 'fa-file');
           const name = isDir ? file.name : (app?.name || file.name);
           const color = isDir ? '#818cf8' : user.settings.accentColor;
+          const isSelected = selectedPaths.includes(file.path);
 
           return (
             <div 
               key={file.path} 
-              className="w-24 h-28 flex flex-col items-center justify-center group cursor-pointer hover:bg-white/10 rounded-2xl transition-all active:scale-95"
+              data-path={file.path}
+              className={`desktop-icon w-24 h-28 flex flex-col items-center justify-center group cursor-pointer rounded-2xl transition-all active:scale-95 ${isSelected ? 'bg-white/20' : 'hover:bg-white/10'}`}
               onDoubleClick={() => isDir ? launchApp('explorer') : launchApp(app?.id || '')}
+              onClick={(e) => { e.stopPropagation(); setSelectedPaths([file.path]); }}
             >
               <div className="w-16 h-16 flex items-center justify-center rounded-[1.25rem] bg-black/20 backdrop-blur-xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform">
                 <i className={`fas ${icon} text-white text-2xl drop-shadow-lg`} style={{ color }}></i>
@@ -186,6 +278,7 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUs
             key={win.id} 
             state={win} 
             isActive={activeWindowId === win.id}
+            corruptionLevel={corruptionLevel}
             accentColor={user.settings.accentColor}
             glassOpacity={user.settings.glassOpacity}
             onClose={() => closeWindow(win.id)}
@@ -222,22 +315,15 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUs
         installPrompt={installPrompt}
       />
 
-      {/* Desktop Context Menu */}
       {menu && (
         <ContextMenu 
           x={menu.x} 
           y={menu.y} 
-          items={[
-            { label: 'Refresh System', icon: 'fa-sync', action: () => window.location.reload() },
-            { label: 'Launch Terminal', icon: 'fa-terminal', action: () => launchApp('terminal') },
-            { label: 'Personalization', icon: 'fa-palette', action: () => launchApp('settings') },
-            { label: 'Clean Desktop', icon: 'fa-broom', action: () => updateSystemState() },
-          ]} 
+          items={menuItems} 
         />
       )}
     </div>
   );
 };
 
-// Fix for error in App.tsx line 8: Added missing default export.
 export default Desktop;
