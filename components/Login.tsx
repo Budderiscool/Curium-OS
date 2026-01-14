@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { User } from '../types';
+import { fs } from '../services/FileSystem';
 
 interface Props {
   user: User;
@@ -10,6 +11,7 @@ interface Props {
 const Login: React.FC<Props> = ({ user, onLogin }) => {
   const [password, setPassword] = useState('');
   const [time, setTime] = useState(new Date());
+  const integrity = fs.getIntegrityReport();
 
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -21,47 +23,11 @@ const Login: React.FC<Props> = ({ user, onLogin }) => {
     onLogin();
   };
 
-  const handleCloak = () => {
-    const win = window.open('about:blank', '_blank');
-    if (!win) {
-      alert("Popup blocked! Please allow popups to launch Stealth Mode.");
-      return;
-    }
-
-    const doc = win.document;
-    const iframe = doc.createElement('iframe');
-    const style = iframe.style;
-
-    doc.title = "Google"; // Common decoy title
-    const link = doc.createElement('link');
-    link.rel = 'icon';
-    link.href = 'https://www.google.com/favicon.ico';
-    doc.head.appendChild(link);
-
-    iframe.src = window.location.href;
-    style.position = 'fixed';
-    style.top = '0';
-    style.left = '0';
-    style.bottom = '0';
-    style.right = '0';
-    style.width = '100%';
-    style.height = '100%';
-    style.border = 'none';
-    style.margin = '0';
-    style.padding = '0';
-    style.overflow = 'hidden';
-    style.zIndex = '999999';
-
-    doc.body.style.margin = '0';
-    doc.body.style.padding = '0';
-    doc.body.appendChild(iframe);
-    
-    // Optional: close the current tab to "disappear"
-    // window.close(); // Most browsers block self-closing unless opened by script
-  };
+  const hasIcons = integrity.hasIcons;
+  const hasFonts = integrity.hasFonts;
 
   return (
-    <div className="h-screen w-screen bg-cover bg-center flex flex-col justify-between items-center py-20 bg-black animate-in fade-in duration-1000 relative">
+    <div className={`h-screen w-screen bg-cover bg-center flex flex-col justify-between items-center py-20 bg-black animate-in fade-in duration-1000 relative ${!hasFonts ? 'system-fonts-missing' : ''}`}>
       <div className="absolute inset-0 bg-gradient-to-b from-black/40 to-black/80"></div>
       
       <div className="relative text-center space-y-2 mt-12">
@@ -93,18 +59,19 @@ const Login: React.FC<Props> = ({ user, onLogin }) => {
             />
             <div className="absolute inset-x-0 -bottom-px h-px bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-0 group-focus-within:opacity-100 transition-opacity"></div>
           </div>
-          <button className="hidden" type="submit">Sign In</button>
           
           <div className="flex flex-col items-center gap-6 mt-8">
             <p className="text-[10px] text-white/20 tracking-widest font-bold uppercase">Unlock Session</p>
             
-            {/* Cloaker / Clicker Button */}
             <button 
               type="button"
-              onClick={handleCloak}
               className="flex items-center gap-3 px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-white/40 hover:text-white transition-all group"
             >
-              <i className="fas fa-mask text-indigo-400 group-hover:scale-110 transition-transform"></i>
+              {hasIcons ? (
+                <i className="fas fa-mask text-indigo-400 group-hover:scale-110 transition-transform"></i>
+              ) : (
+                <div className="w-3 h-3 bg-white/10 rounded-sm"></div>
+              )}
               Launch Stealth Mode
             </button>
           </div>
@@ -114,9 +81,13 @@ const Login: React.FC<Props> = ({ user, onLogin }) => {
       <div className="relative z-10 flex flex-col items-center gap-4">
         <p className="text-[10px] tracking-[0.3em] text-white/20 uppercase font-black">Curium Operating System • LTS v1.2</p>
         <div className="flex gap-6 text-white/30">
-           <i className="fas fa-wifi text-xs hover:text-white transition-colors cursor-help"></i>
-           <i className="fas fa-battery-three-quarters text-xs hover:text-emerald-400 transition-colors cursor-help"></i>
-           <i className="fas fa-power-off text-xs cursor-pointer hover:text-red-500 transition-all active:scale-90" onClick={() => window.location.reload()}></i>
+           {hasIcons ? <i className="fas fa-wifi text-xs"></i> : <div className="w-3 h-3 bg-white/5"></div>}
+           {hasIcons ? <i className="fas fa-battery-three-quarters text-xs"></i> : <div className="w-3 h-3 bg-white/5"></div>}
+           {hasIcons ? (
+             <i className="fas fa-power-off text-xs cursor-pointer hover:text-red-500" onClick={() => window.location.reload()}></i>
+           ) : (
+             <div className="w-3 h-3 bg-red-500/20 rounded-full" onClick={() => window.location.reload()}></div>
+           )}
         </div>
       </div>
     </div>

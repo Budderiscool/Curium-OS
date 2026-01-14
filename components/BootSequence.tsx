@@ -1,14 +1,18 @@
+
 import React, { useState, useEffect } from 'react';
 import { OSStatus } from '../types';
 
 interface Props {
   onComplete: (status: OSStatus) => void;
-  integrity: { hasKernel: boolean; hasShell: boolean };
+  integrity: any;
 }
 
 const BootSequence: React.FC<Props> = ({ onComplete, integrity }) => {
   const [logs, setLogs] = useState<string[]>([]);
   const [progress, setProgress] = useState(0);
+
+  const hasIcons = integrity.hasIcons;
+  const hasFonts = integrity.hasFonts;
 
   useEffect(() => {
     const messages = [
@@ -19,41 +23,29 @@ const BootSequence: React.FC<Props> = ({ onComplete, integrity }) => {
       "VIRT_DISK: IDB_0 (Indexed Database Storage) found",
       "Partition mapping: IDB_0p1 [BOOT], IDB_0p2 [SYSTEM], IDB_0p3 [USER]",
       "Mounting File System... [ext4-virt]",
-      integrity.hasKernel ? "[  OK  ] Kernel found: /sys/boot/kernel.sys (v1.2.5-node)" : "[FAILED] FATAL: KERNEL IMAGE NOT FOUND AT /sys/boot/kernel.sys",
-      "Kernel: Command line: console=tty0 root=/dev/idb_0p2 rw systemd.unit=multi-user.target",
+      integrity.hasKernel ? "[  OK  ] Kernel found: /sys/boot/kernel.sys" : "[FAILED] FATAL: KERNEL IMAGE NOT FOUND",
       "Initializing Curium Interrupt Controller...",
-      "PCI: Enumerating buses...",
-      "PCI: 00:01.0 - VirtIO Display Adapter v2.1",
-      "PCI: 00:02.0 - VirtIO Input (HID Bridge)",
-      "PCI: 00:03.0 - VirtIO Network Controller (eth0)",
-      "[  OK  ] Driver Loaded: DISPLAY_ACCEL_X64.DRV",
-      "[  OK  ] Driver Loaded: INPUT_HID_REACTIVE.DRV",
       "Loading UI Subsystems...",
-      integrity.hasShell ? "[  OK  ] Shell binary /sys/bin/shell.exe verified (SHA-256: e3b0c442...)" : "[ WARN ] Shell binary corrupted or missing. Falling back to recovery console.",
-      "Starting System Daemons...",
+      integrity.hasShell ? "[  OK  ] Shell binary verified" : "[ WARN ] Shell binary corrupted or missing.",
+      integrity.hasWindowHandler ? "[  OK  ] Window Manager service started" : "[FAILED] window_handler.srv missing",
+      integrity.hasAppManager ? "[  OK  ] App Manager service started" : "[FAILED] app_manager.srv missing",
       "[  OK  ] Started D-Bus System Message Bus",
-      "[  OK  ] Started Curium Virtual File System Manager",
-      "[  OK  ] Started System UI Server (Compositor: CuriumWM)",
-      "[  OK  ] Started User Login Manager",
+      "[  OK  ] Started System UI Server",
       "Network: eth0 initialized [IPv4: 10.0.0.15/24]",
-      "Security: V-TPM 2.0 State Verified",
       "Boot Sequence Finalizing...",
-      "Entering runlevel 5 (Multi-User GUI Mode)...",
+      "Entering runlevel 5...",
     ];
 
     let i = 0;
     const interval = setInterval(() => {
       if (i < messages.length) {
-        const nextMsg = messages[i];
-        if (nextMsg !== undefined) {
-          setLogs(prev => [...prev, nextMsg]);
-        }
+        setLogs(prev => [...prev, messages[i]]);
         setProgress(((i + 1) / messages.length) * 100);
         i++;
       } else {
         clearInterval(interval);
         setTimeout(() => {
-          if (!integrity.hasKernel) {
+          if (!integrity.hasKernel || !integrity.hasWindowHandler || !integrity.hasAppManager) {
             onComplete(OSStatus.FAILURE);
           } else {
             const user = localStorage.getItem('curium_user');
@@ -61,13 +53,13 @@ const BootSequence: React.FC<Props> = ({ onComplete, integrity }) => {
           }
         }, 1000);
       }
-    }, 200); // Slightly faster for density
+    }, 200);
 
     return () => clearInterval(interval);
-  }, [onComplete, integrity.hasKernel, integrity.hasShell]);
+  }, [onComplete, integrity]);
 
   return (
-    <div className="bg-black text-green-500 font-mono p-8 h-screen w-screen overflow-hidden flex flex-col justify-between crt">
+    <div className={`bg-black text-green-500 font-mono p-8 h-screen w-screen overflow-hidden flex flex-col justify-between crt ${!hasFonts ? 'system-fonts-missing' : ''}`}>
       <div className="space-y-0.5 overflow-hidden">
         {logs.map((log, idx) => {
           const isError = log.includes('FAILED') || log.includes('FATAL');
@@ -82,7 +74,11 @@ const BootSequence: React.FC<Props> = ({ onComplete, integrity }) => {
           return (
             <div key={idx} className={`${textColor} text-[11px] flex gap-2`}>
               <span className="opacity-30">[{new Date().getTime().toString().slice(-6)}]</span>
-              <span>{log}</span>
+              <span>
+                {hasIcons && isOk && <i className="fas fa-check-circle mr-1 text-[8px]"></i>}
+                {hasIcons && isError && <i className="fas fa-times-circle mr-1 text-[8px]"></i>}
+                {log}
+              </span>
             </div>
           );
         })}

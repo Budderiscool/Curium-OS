@@ -5,19 +5,24 @@ export const SYSTEM_FILES: VFile[] = [
   { name: 'kernel.sys', path: '/sys/boot/kernel.sys', type: FileType.SYSTEM, isCritical: true, content: 'SYSTEM_CORE_0xFF1A' },
   { name: 'shell.exe', path: '/sys/bin/shell.exe', type: FileType.SYSTEM, isCritical: true, content: 'UI_SHELL_MODULE' },
   { name: 'ui_handler.srv', path: '/sys/bin/ui_handler.srv', type: FileType.SYSTEM, isCritical: true, content: 'UI_COMPOSITOR_SERVICE' },
+  { name: 'window_handler.srv', path: '/sys/bin/window_handler.srv', type: FileType.SYSTEM, isCritical: true, content: 'WM_WINDOW_MANAGER_SERVICE' },
+  { name: 'app_manager.srv', path: '/sys/bin/app_manager.srv', type: FileType.SYSTEM, isCritical: true, content: 'APP_LIFECYCLE_SERVICE' },
   { name: 'menu.srv', path: '/sys/ui/menu.srv', type: FileType.SYSTEM, isCritical: true, content: 'CONTEXT_MENU_HANDLER' },
   { name: 'compositor.sys', path: '/sys/ui/compositor.sys', type: FileType.SYSTEM, isCritical: true, content: 'GFX_COMP_V1' },
   { name: 'fstab', path: '/etc/fstab', type: FileType.SYSTEM, isCritical: true, content: 'UUID=root / ext4 defaults 1 1' },
   
-  // Folders
+  // System Folders
   { name: 'desktop', path: '/home/user/desktop', type: FileType.DIRECTORY },
   { name: 'fonts', path: '/sys/fonts', type: FileType.DIRECTORY },
   { name: 'icons', path: '/sys/icons', type: FileType.DIRECTORY },
   { name: 'images', path: '/sys/images', type: FileType.DIRECTORY },
   { name: 'ui', path: '/sys/ui', type: FileType.DIRECTORY },
+  { name: 'apps', path: '/sys/apps', type: FileType.DIRECTORY },
 
-  // Critical Resources
+  // Critical Global Resources
   { name: 'wallpaper_system.img', path: '/sys/images/wallpaper_system.img', type: FileType.SYSTEM, isCritical: true, content: 'BLOB_DATA_IMG_001' },
+  { name: 'segoe_ui.ttf', path: '/sys/fonts/segoe_ui.ttf', type: FileType.SYSTEM, isCritical: true, content: 'FONT_DATA' },
+  { name: 'main_set.dll', path: '/sys/icons/main_set.dll', type: FileType.SYSTEM, isCritical: true, content: 'ICON_DATA' },
 
   // Pre-installed Apps on Desktop
   { name: 'Terminal.app', path: '/home/user/desktop/terminal.app', type: FileType.APP, content: 'terminal', icon: 'fa-terminal' },
