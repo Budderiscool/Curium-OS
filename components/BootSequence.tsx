@@ -62,6 +62,9 @@ const BootSequence: React.FC<Props> = ({ onComplete, integrity }) => {
     <div className={`bg-black text-green-500 font-mono p-8 h-screen w-screen overflow-hidden flex flex-col justify-between crt ${!hasFonts ? 'system-fonts-missing' : ''}`}>
       <div className="space-y-0.5 overflow-hidden">
         {logs.map((log, idx) => {
+          // Safety check to prevent "TypeError: undefined is not an object (evaluating 'log.includes')"
+          if (!log) return null;
+
           const isError = log.includes('FAILED') || log.includes('FATAL');
           const isWarn = log.includes('WARN');
           const isOk = log.includes('[  OK  ]');

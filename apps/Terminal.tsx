@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect } from 'react';
 import { fs } from '../services/FileSystem';
 import { FileType } from '../types';
@@ -186,6 +187,7 @@ const Terminal: React.FC<Props> = ({ launchApp }) => {
     <div className="h-full bg-black flex flex-col font-mono text-[13px] p-6 overflow-hidden text-emerald-500/90 selection:bg-emerald-500/20 selection:text-white">
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 scrollbar-hide">
         {history.map((line, i) => {
+          if (!line) return <div key={i} className="h-4"></div>;
           const isError = line.includes('ERROR') || line.includes('not found') || line.includes('Usage:');
           const isCommand = line.startsWith('[user@curium');
           return (
