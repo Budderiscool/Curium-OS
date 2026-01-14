@@ -44,13 +44,19 @@ const BUILT_IN_APPS: AppManifest[] = [
   { id: 'sysinfo', name: 'System Info', description: 'Diagnostics & hardware', icon: 'fa-info-circle', component: SysInfo },
 ];
 
-const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user, installPrompt }) => {
+const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user: initialUser, installPrompt }) => {
+  const [user, setUser] = useState<User>(initialUser);
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number, y: number } | null>(null);
   const [isStartOpen, setIsStartOpen] = useState(false);
   const [desktopFiles, setDesktopFiles] = useState(fs.getFilesInDirectory('/home/user/desktop'));
   const [integrity, setIntegrity] = useState(fs.getIntegrityReport());
+
+  const refreshUser = useCallback(() => {
+    const updated = kernel.getCurrentUser();
+    if (updated) setUser(updated);
+  }, []);
 
   const updateSystemState = useCallback(() => {
     setIntegrity(fs.getIntegrityReport());
@@ -59,8 +65,12 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user, installPr
 
   useEffect(() => {
     window.addEventListener('curium_fs_changed', updateSystemState);
-    return () => window.removeEventListener('curium_fs_changed', updateSystemState);
-  }, [updateSystemState]);
+    window.addEventListener('curium_user_updated', refreshUser);
+    return () => {
+      window.removeEventListener('curium_fs_changed', updateSystemState);
+      window.removeEventListener('curium_user_updated', refreshUser);
+    };
+  }, [updateSystemState, refreshUser]);
 
   const launchApp = (appId: string) => {
     const app = BUILT_IN_APPS.find(a => a.id === appId);
@@ -103,43 +113,27 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user, installPr
   };
 
   const focusWindow = (id: string) => {
-    setWindows(prev => prev.map(w => ({
-      ...w,
-      zIndex: w.id === id ? Math.max(...prev.map(win => win.zIndex), APP_Z_START) + 1 : w.zIndex,
-      isMinimized: w.id === id ? false : w.isMinimized
-    })));
+    setWindows(prev => {
+      const maxZ = Math.max(...prev.map(win => win.zIndex), APP_Z_START);
+      return prev.map(w => ({
+        ...w,
+        zIndex: w.id === id ? maxZ + 1 : w.zIndex,
+        isMinimized: w.id === id ? false : w.isMinimized
+      }));
+    });
     setActiveWindowId(id);
     setIsStartOpen(false);
   };
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setMenu({ x: e.clientX, y: e.clientY });
+  const minimizeAll = () => {
+    setWindows(prev => prev.map(w => ({ ...w, isMinimized: true })));
+    setActiveWindowId(null);
   };
 
-  const launchFolder = (path: string) => {
-    const appId = 'explorer';
-    const existing = windows.find(w => w.appId === appId);
-    if (existing) {
-      focusWindow(existing.id);
-    } else {
-      const app = BUILT_IN_APPS.find(a => a.id === appId)!;
-      const newWindow: WindowState = {
-        id: Math.random().toString(36).substr(2, 9),
-        appId: app.id,
-        title: `Explorer - ${path}`,
-        icon: app.icon,
-        isMaximized: false,
-        isMinimized: false,
-        zIndex: windows.length + APP_Z_START,
-        x: 150,
-        y: 150,
-        width: 800,
-        height: 500
-      };
-      setWindows(prev => [...prev, newWindow]);
-      setActiveWindowId(newWindow.id);
-    }
+  const handleContextMenu = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('.window-content')) return;
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY });
   };
 
   return (
@@ -156,28 +150,34 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user, installPr
 
       {/* Desktop Icons Container */}
       <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
-        {/* ... existing desktop icons ... */}
         {desktopFiles.map(file => {
-          if (file.type !== FileType.APP) return null;
-          const app = BUILT_IN_APPS.find(a => a.id === file.content);
-          if (!app) return null;
+          const app = file.type === FileType.APP ? BUILT_IN_APPS.find(a => a.id === file.content) : null;
+          const isDir = file.type === FileType.DIRECTORY;
+          
+          if (!app && !isDir) return null;
+          
+          const icon = isDir ? 'fa-folder' : (app?.icon || 'fa-file');
+          const name = isDir ? file.name : (app?.name || file.name);
+          const color = isDir ? '#818cf8' : user.settings.accentColor;
+
           return (
             <div 
               key={file.path} 
               className="w-24 h-28 flex flex-col items-center justify-center group cursor-pointer hover:bg-white/10 rounded-2xl transition-all active:scale-95"
-              onDoubleClick={() => launchApp(app.id)}
+              onDoubleClick={() => isDir ? launchApp('explorer') : launchApp(app?.id || '')}
             >
               <div className="w-16 h-16 flex items-center justify-center rounded-[1.25rem] bg-black/20 backdrop-blur-xl border border-white/10 shadow-2xl group-hover:scale-110 transition-transform">
-                <i className={`fas ${app.icon} text-white text-2xl drop-shadow-lg`} style={{ color: user.settings.accentColor }}></i>
+                <i className={`fas ${icon} text-white text-2xl drop-shadow-lg`} style={{ color }}></i>
               </div>
               <span className="text-white text-[10px] mt-3.5 text-center drop-shadow-md font-black uppercase tracking-widest px-2 truncate w-full">
-                {app.name}
+                {name}
               </span>
             </div>
           );
         })}
       </div>
 
+      {/* Render Active Windows */}
       {windows.map(win => {
         const appInfo = BUILT_IN_APPS.find(a => a.id === win.appId);
         const AppComp = appInfo?.component;
@@ -192,7 +192,9 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user, installPr
             onFocus={() => focusWindow(win.id)}
             onUpdate={(newState) => setWindows(prev => prev.map(w => w.id === win.id ? newState : w))}
           >
-            {AppComp && <AppComp installPrompt={installPrompt} launchApp={launchApp} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
+            <div className="window-content h-full w-full">
+              {AppComp && <AppComp installPrompt={installPrompt} launchApp={launchApp} initialPath={win.appId === 'explorer' ? '/home/user/desktop' : undefined} />}
+            </div>
           </Window>
         );
       })}
@@ -215,10 +217,12 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user, installPr
           e?.stopPropagation();
           setIsStartOpen(!isStartOpen);
         }}
+        onMinimizeAll={minimizeAll}
         isStartOpen={isStartOpen}
         installPrompt={installPrompt}
       />
 
+      {/* Desktop Context Menu */}
       {menu && (
         <ContextMenu 
           x={menu.x} 
@@ -235,4 +239,5 @@ const Desktop: React.FC<{ user: User, installPrompt: any }> = ({ user, installPr
   );
 };
 
+// Fix for error in App.tsx line 8: Added missing default export.
 export default Desktop;

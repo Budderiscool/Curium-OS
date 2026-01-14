@@ -1,18 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { fs } from '../services/FileSystem';
 import { FileType } from '../types';
+import { kernel } from '../services/Kernel';
 
 interface Props {
   launchApp?: (id: string) => void;
 }
 
 const Terminal: React.FC<Props> = ({ launchApp }) => {
-  const [history, setHistory] = useState<string[]>(['Welcome to Curium Terminal v1.2', 'Type "help" for a list of commands.']);
+  const [history, setHistory] = useState<string[]>(['CuriumOS Terminal [Version 1.2.5]', '(c) 2025 Curium Systems. All rights reserved.', '', 'Type "help" to see available commands.']);
   const [input, setInput] = useState('');
   const [currentDir, setCurrentDir] = useState('/');
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
   const [historyPointer, setHistoryPointer] = useState(-1);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const startTime = useRef(Date.now());
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight);
@@ -33,22 +36,60 @@ const Terminal: React.FC<Props> = ({ launchApp }) => {
 
     switch (action) {
       case 'help':
-        setHistory(prev => [...prev, 'Available commands:', 'ls, cd [dir], mkdir [name], touch [name], rm [path], cat [path], open [app], neofetch, clear, reboot, reset-system']);
+        setHistory(prev => [...prev, 'Available commands:', 'ls, cd, pwd, mkdir, touch, rm, cat, open, neofetch, clear, reboot, reset-system, history, man, sysctl, battery, theme, uptime']);
+        break;
+      case 'man':
+        if (!args[0]) setHistory(prev => [...prev, 'What manual page do you want? Try: man theme, man sysctl']);
+        else if (args[0] === 'theme') setHistory(prev => [...prev, 'THEME(1) - Manual Page', 'NAME: theme - Modify system UI accent color.', 'USAGE: theme [hex_color]', 'EXAMPLE: theme #ec4899']);
+        else if (args[0] === 'sysctl') setHistory(prev => [...prev, 'SYSCTL(1) - Manual Page', 'NAME: sysctl - View system configuration and status.', 'USAGE: sysctl [-a]']);
+        else setHistory(prev => [...prev, `No manual entry for ${args[0]}`]);
+        break;
+      case 'pwd':
+        setHistory(prev => [...prev, currentDir]);
+        break;
+      case 'history':
+        setHistory(prev => [...prev, ...cmdHistory.slice().reverse().map((c, i) => `${i + 1}  ${c}`)]);
+        break;
+      case 'uptime':
+        const uptimeSeconds = Math.floor((Date.now() - startTime.current) / 1000);
+        setHistory(prev => [...prev, `CuriumOS up ${Math.floor(uptimeSeconds / 60)} minutes, ${uptimeSeconds % 60} seconds.`]);
+        break;
+      case 'sysctl':
+        setHistory(prev => [...prev, 
+          'kernel.name = CuriumOS',
+          'kernel.version = 1.2.5-node-stable',
+          'vm.swappiness = 60',
+          'fs.vfs_type = IndexedDB_LocalStorage_Bridge',
+          'mem.total = 16384 MB',
+          `cpu.usage = ${(Math.random() * 5).toFixed(2)}%`,
+          `net.status = ONLINE`,
+          `user.current = ${kernel.getCurrentUser()?.username || 'Guest'}`
+        ]);
+        break;
+      case 'battery':
+        setHistory(prev => [...prev, '--- Power Management Unit Telemetry ---', 'Status: Discharging', 'Capacity: 100%', 'Voltage: 3.8V', 'Temperature: 31.2°C', 'Health: 99% (Excellent)']);
+        break;
+      case 'theme':
+        if (!args[0]) setHistory(prev => [...prev, 'Usage: theme [hex_color] (e.g., theme #ec4899)']);
+        else {
+          kernel.updateUser({ settings: { ...kernel.getCurrentUser()!.settings, accentColor: args[0] } });
+          setHistory(prev => [...prev, `System accent color updated to ${args[0]}`]);
+        }
         break;
       case 'neofetch':
         setHistory(prev => [...prev, 
-          '      .---.      OS: CuriumOS LTS',
-          '     /     \\     Host: Webkit Runtime',
-          '    | () () |    Kernel: 1.2.5-node',
-          '     \\  ^  /     Shell: curium-sh v1.0',
+          '      .---.      OS: CuriumOS LTS Pro',
+          '     /     \\     Host: Webkit V8 Runtime',
+          '    | () () |    Kernel: 1.2.5-node-stable',
+          '     \\  ^  /     Shell: curium-sh v1.0.4',
           '      \'---\'      WM: CuriumWindowManager',
-          '                 Accent: Indigo'
+          '                 Colors: Pro-Dark-Indig'
         ]);
         break;
       case 'ls':
         const files = fs.getFilesInDirectory(currentDir);
         if (files.length === 0) setHistory(prev => [...prev, '(empty)']);
-        else setHistory(prev => [...prev, ...files.map(f => `${f.type === FileType.DIRECTORY ? 'DIR' : 'FIL'}  ${f.name}`)]);
+        else setHistory(prev => [...prev, ...files.map(f => `${f.type === FileType.DIRECTORY ? 'DIR' : f.type === FileType.APP ? 'APP' : 'FIL'}  ${f.name}`)]);
         break;
       case 'cd':
         if (!args[0] || args[0] === '/') {
@@ -142,23 +183,28 @@ const Terminal: React.FC<Props> = ({ launchApp }) => {
   };
 
   return (
-    <div className="h-full bg-black flex flex-col font-mono text-[13px] p-4 overflow-hidden text-emerald-500">
+    <div className="h-full bg-black flex flex-col font-mono text-[13px] p-6 overflow-hidden text-emerald-500/90 selection:bg-emerald-500/20 selection:text-white">
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-1 scrollbar-hide">
-        {history.map((line, i) => (
-          <div key={i} className={`whitespace-pre-wrap ${line.includes('ERROR') || line.includes('not found') ? 'text-red-400' : ''}`}>
-            {line}
-          </div>
-        ))}
+        {history.map((line, i) => {
+          const isError = line.includes('ERROR') || line.includes('not found') || line.includes('Usage:');
+          const isCommand = line.startsWith('[user@curium');
+          return (
+            <div key={i} className={`whitespace-pre-wrap leading-relaxed ${isError ? 'text-red-400' : isCommand ? 'text-indigo-400 font-bold' : ''}`}>
+              {line}
+            </div>
+          );
+        })}
       </div>
-      <div className="flex gap-2 text-indigo-400 mt-4 border-t border-white/5 pt-2">
-        <span className="shrink-0">[{currentDir}]#</span>
+      <div className="flex gap-2 text-indigo-400 mt-6 border-t border-white/5 pt-4">
+        <span className="shrink-0 font-bold opacity-80">[{currentDir}]#</span>
         <input 
           autoFocus 
-          className="bg-transparent outline-none text-white flex-1 caret-white" 
+          className="bg-transparent outline-none text-white flex-1 caret-emerald-500" 
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           spellCheck={false}
+          autoComplete="off"
         />
       </div>
     </div>

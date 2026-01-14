@@ -10,11 +10,12 @@ interface Props {
   onLaunch: (id: string) => void;
   onFocus: (id: string) => void;
   onStartToggle: (e?: React.MouseEvent) => void;
+  onMinimizeAll: () => void;
   isStartOpen: boolean;
   installPrompt: any;
 }
 
-const Taskbar: React.FC<Props> = ({ user, apps, windows, activeId, onLaunch, onFocus, onStartToggle, isStartOpen, installPrompt }) => {
+const Taskbar: React.FC<Props> = ({ user, apps, windows, activeId, onLaunch, onFocus, onStartToggle, onMinimizeAll, isStartOpen, installPrompt }) => {
   const [time, setTime] = useState(new Date());
   const [battery, setBattery] = useState<{level: number, charging: boolean}>({ level: 1, charging: false });
 
@@ -113,17 +114,29 @@ const Taskbar: React.FC<Props> = ({ user, apps, windows, activeId, onLaunch, onF
         )}
       </div>
 
-      <div className="flex items-center bg-black/40 backdrop-blur-3xl border border-white/10 rounded-full px-5 h-full shadow-2xl gap-4 hover:bg-white/5 cursor-pointer transition-colors" onClick={() => onLaunch('settings')}>
-         <div className="flex items-center gap-4 text-white/40 text-[10px]">
-           <i className="fas fa-wifi"></i>
-           <div className="flex items-center gap-1.5">
-             <i className={`fas ${getBatteryIcon()}`}></i>
-             <span className="font-mono">{Math.round(battery.level * 100)}%</span>
-           </div>
-         </div>
-         <div className="text-[11px] font-bold text-white/90 font-sans tracking-tight">
-           {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-         </div>
+      <div className="flex items-center bg-black/40 backdrop-blur-3xl border border-white/10 rounded-full h-full shadow-2xl overflow-hidden">
+        <div 
+          className="flex items-center px-5 h-full gap-4 hover:bg-white/5 cursor-pointer transition-colors" 
+          onClick={() => onLaunch('settings')}
+        >
+          <div className="flex items-center gap-4 text-white/40 text-[10px]">
+            <i className="fas fa-wifi"></i>
+            <div className="flex items-center gap-1.5">
+              <i className={`fas ${getBatteryIcon()}`}></i>
+              <span className="font-mono">{Math.round(battery.level * 100)}%</span>
+            </div>
+          </div>
+          <div className="text-[11px] font-bold text-white/90 font-sans tracking-tight">
+            {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </div>
+        </div>
+        
+        {/* Minimize All / Show Desktop Hit Zone */}
+        <div 
+          onClick={onMinimizeAll}
+          className="w-3 h-full border-l border-white/10 hover:bg-white/10 transition-all cursor-pointer"
+          title="Minimize All Windows"
+        />
       </div>
     </div>
   );
