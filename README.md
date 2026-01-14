@@ -4,19 +4,17 @@ CuriumOS is a high-performance, web-based operating system built with React, Typ
 
 ## 🚀 Deployment Configuration
 
-To deploy CuriumOS to Cloudflare Pages with Worker functions, use the following `wrangler.jsonc` configuration. This file is required in your project root for the deployment to succeed.
+To deploy CuriumOS to Cloudflare Pages, the following `wrangler.jsonc` configuration is required in the root directory:
 
 ```json
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "curium-os",
-  "main": "worker.ts",
+  "name": "curiumos",
+  "pages_build_output_dir": "dist",
   "compatibility_date": "2025-05-15",
-  "compatibility_flags": ["nodejs_compat"],
-  "assets": {
-    "directory": "./dist",
-    "binding": "ASSETS"
-  },
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "kv_namespaces": [
     {
       "binding": "CURIUM_KV",
@@ -32,7 +30,7 @@ To deploy CuriumOS to Cloudflare Pages with Worker functions, use the following 
 ## 🛠 System Architecture
 
 ### 1. The Kernel (`services/Kernel.ts`)
-The Kernel manages the global state of the OS, including user authentication, session persistence, and application usage tracking. It interfaces with `CloudStorage` to ensure user profiles are synchronized across devices.
+The Kernel manages the global state of the OS, including user authentication, session persistence, and application usage tracking. It interfaces with `CloudStorage` to ensure user profiles are synchronized across devices using Cloudflare Workers KV.
 
 ### 2. Virtual File System (`services/FileSystem.ts`)
 CuriumOS operates on a virtualized directory structure stored in the browser's `LocalStorage`. It supports:
