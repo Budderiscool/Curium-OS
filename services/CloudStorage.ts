@@ -5,10 +5,10 @@ class CloudStorageService {
   private endpoint = '/api/profile';
 
   async saveProfile(user: User): Promise<void> {
-    // Save to LocalStorage for offline/fallback
+    // Always update LocalStorage immediately for responsiveness
     localStorage.setItem('curium_user', JSON.stringify(user));
 
-    // Prepare for Cloudflare Workers / D1 integration
+    // Sync to Cloudflare Workers KV
     try {
       const response = await fetch(this.endpoint, {
         method: 'POST',
@@ -22,6 +22,21 @@ class CloudStorageService {
   }
 
   async loadProfile(): Promise<User | null> {
+    // Attempt to load from cloud first
+    try {
+      const response = await fetch(this.endpoint);
+      if (response.ok) {
+        const cloudUser = await response.json();
+        if (cloudUser) {
+          localStorage.setItem('curium_user', JSON.stringify(cloudUser));
+          return cloudUser;
+        }
+      }
+    } catch (e) {
+      console.warn('Load from cloud failed, using local fallback:', e);
+    }
+
+    // Fallback to LocalStorage
     const local = localStorage.getItem('curium_user');
     return local ? JSON.parse(local) : null;
   }

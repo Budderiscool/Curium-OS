@@ -18,6 +18,9 @@ import Calculator from '../apps/Calculator';
 import MediaPlayer from '../apps/MediaPlayer';
 import Weather from '../apps/Weather';
 import Clock from '../apps/Clock';
+import Notes from '../apps/Notes';
+import Gallery from '../apps/Gallery';
+import SysInfo from '../apps/SysInfo';
 import { APP_Z_START } from '../constants';
 
 const BUILT_IN_APPS: AppManifest[] = [
@@ -33,6 +36,9 @@ const BUILT_IN_APPS: AppManifest[] = [
   { id: 'media', name: 'Media Player', description: 'Music and visualizer', icon: 'fa-compact-disc', component: MediaPlayer },
   { id: 'weather', name: 'Weather', description: 'Local forecast', icon: 'fa-cloud-sun', component: Weather },
   { id: 'clock', name: 'Clock', description: 'Time utilities', icon: 'fa-clock', component: Clock },
+  { id: 'notes', name: 'Notes+', description: 'Advanced document manager', icon: 'fa-sticky-note', component: Notes },
+  { id: 'gallery', name: 'Gallery', description: 'Photo & media viewer', icon: 'fa-images', component: Gallery },
+  { id: 'sysinfo', name: 'System Info', description: 'Diagnostics & hardware', icon: 'fa-info-circle', component: SysInfo },
 ];
 
 const Desktop: React.FC<{ user: User }> = ({ user }) => {
@@ -112,7 +118,6 @@ const Desktop: React.FC<{ user: User }> = ({ user }) => {
     const appId = 'explorer';
     const existing = windows.find(w => w.appId === appId);
     if (existing) {
-      // For now just focus. In future, could support path as prop.
       focusWindow(existing.id);
     } else {
       const app = BUILT_IN_APPS.find(a => a.id === appId)!;
@@ -147,7 +152,6 @@ const Desktop: React.FC<{ user: User }> = ({ user }) => {
       <div className="absolute inset-0 bg-black/30 pointer-events-none"></div>
 
       <div className="relative z-10 p-10 grid grid-flow-col grid-rows-[repeat(auto-fill,120px)] gap-x-6 gap-y-10 w-fit h-full">
-        {/* Special Desktop Folder Icon */}
         <div 
           className="w-24 h-28 flex flex-col items-center justify-center group cursor-pointer hover:bg-white/10 rounded-2xl transition-all active:scale-95"
           onDoubleClick={() => launchFolder('/home/user/desktop')}
@@ -160,7 +164,6 @@ const Desktop: React.FC<{ user: User }> = ({ user }) => {
           </span>
         </div>
 
-        {/* Individual App Icons */}
         {desktopFiles.map(file => {
           if (file.type !== FileType.APP) return null;
           const app = BUILT_IN_APPS.find(a => a.id === file.content);
